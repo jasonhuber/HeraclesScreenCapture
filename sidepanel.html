@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Heracles Capture</title>
+    <link rel="stylesheet" href="sidepanel.css">
+  </head>
+  <body>
+    <main class="panel">
+      <header class="hero">
+        <p class="eyebrow">Heracles</p>
+        <h1>Write your walkthrough and drop screenshots inline as you go</h1>
+        <p class="subtle">
+          Type your narration, place the cursor where the image belongs, and capture the current app screen into that spot.
+        </p>
+      </header>
+
+      <section class="card">
+        <div class="section-heading">
+          <h2>Export Target</h2>
+          <span id="folderStatusBadge" class="badge badge-muted">Not selected</span>
+        </div>
+
+        <p class="subtle">
+          Best experience: pick a folder once and let the extension write files into it. If folder access is unavailable,
+          the extension falls back to your Chrome Downloads folder.
+        </p>
+
+        <div class="button-row">
+          <button id="selectFolderButton" class="button button-secondary" type="button">
+            Select Export Folder
+          </button>
+          <button id="clearFolderButton" class="button button-ghost" type="button">
+            Clear Folder
+          </button>
+        </div>
+
+        <p id="folderStatusText" class="small subtle">No export folder selected yet.</p>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <h2>Run Setup</h2>
+          <span id="activeUrlHint" class="small subtle"></span>
+        </div>
+
+        <label class="field">
+          <span>Run Name</span>
+          <input id="runNameInput" name="runName" type="text" placeholder="onboarding-flow">
+        </label>
+
+        <label class="field">
+          <span>Document Title</span>
+          <input id="documentTitleInput" name="documentTitle" type="text" placeholder="How to Create a Policy">
+        </label>
+
+        <p id="runFolderHint" class="small subtle">
+          The run folder will be created on the first capture.
+        </p>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <h2>Live Narration</h2>
+        </div>
+
+        <label class="field">
+          <span>Markdown Script</span>
+          <textarea
+            id="narrationInput"
+            class="editor"
+            name="narrationText"
+            rows="16"
+            placeholder="Type what the learner should hear here. Put your cursor where the next screenshot belongs, then click Quick Capture & Insert or Capture, Crop & Edit."
+          ></textarea>
+        </label>
+
+        <p class="small subtle">
+          Both capture buttons insert a Markdown image tag at the current cursor position and save the screenshot into
+          the run's `screenshots/` folder. The edit flow lets you crop or annotate first.
+        </p>
+
+        <div class="button-row">
+          <button id="captureButton" class="button button-primary" type="button">
+            Quick Capture & Insert
+          </button>
+          <button id="captureEditButton" class="button button-secondary" type="button">
+            Capture, Crop & Edit
+          </button>
+          <button id="previewButton" class="button button-secondary" type="button">
+            Preview Markdown
+          </button>
+          <button id="saveMarkdownButton" class="button button-secondary" type="button">
+            Save Markdown
+          </button>
+          <button id="resetRunButton" class="button button-ghost" type="button">
+            Start New Run
+          </button>
+        </div>
+
+        <p id="statusText" class="status">Ready.</p>
+      </section>
+
+      <section id="editorCard" class="card hidden">
+        <div class="section-heading">
+          <h2>Image Editor</h2>
+          <span id="editorMeta" class="small subtle"></span>
+        </div>
+
+        <p id="editorHint" class="small subtle">
+          Drag across the image to select a crop region, then apply it.
+        </p>
+
+        <div class="editor-toolbar">
+          <label class="field compact-field">
+            <span>Tool</span>
+            <select id="editorToolSelect" name="editorTool">
+              <option value="crop">Crop</option>
+              <option value="box">Box</option>
+              <option value="pen">Pen</option>
+            </select>
+          </label>
+
+          <label class="field compact-field">
+            <span>Color</span>
+            <input id="editorColorInput" name="editorColor" type="color" value="#d97706">
+          </label>
+
+          <label class="field compact-field">
+            <span>Stroke</span>
+            <input id="editorStrokeInput" name="editorStroke" type="range" min="2" max="18" value="4">
+          </label>
+        </div>
+
+        <div class="canvas-stage">
+          <canvas id="editorCanvas"></canvas>
+        </div>
+
+        <div class="button-row">
+          <button id="applyCropButton" class="button button-secondary" type="button">
+            Apply Crop
+          </button>
+          <button id="undoEditButton" class="button button-secondary" type="button">
+            Undo
+          </button>
+          <button id="resetImageButton" class="button button-ghost" type="button">
+            Reset Image
+          </button>
+          <button id="saveEditedCaptureButton" class="button button-primary" type="button">
+            Save & Insert Edited Image
+          </button>
+          <button id="cancelEditorButton" class="button button-ghost" type="button">
+            Cancel
+          </button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <h2>Markdown Preview</h2>
+        </div>
+        <textarea id="previewOutput" class="preview" readonly spellcheck="false"></textarea>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <h2>Captured Screens</h2>
+        </div>
+        <div id="captureList" class="capture-list">
+          <p class="small subtle">No screenshots captured yet.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <h2>Last Export</h2>
+        </div>
+        <div id="lastExport" class="small subtle">Nothing exported yet.</div>
+      </section>
+    </main>
+
+    <script src="sidepanel.js"></script>
+  </body>
+</html>
