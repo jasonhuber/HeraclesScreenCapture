@@ -10,9 +10,10 @@
     <main class="panel">
       <header class="hero">
         <p class="eyebrow">Heracles</p>
-        <h1>Write your walkthrough and drop screenshots inline as you go</h1>
+        <h1>Capture steps, keep the story moving, and export a cleaner training package</h1>
         <p class="subtle">
-          Type your narration, place the cursor where the image belongs, and capture the current app screen into that spot.
+          The panel stays open while you move through the product. Capture the current view, manage the step list, redact
+          anything sensitive, and export the run when it is ready.
         </p>
       </header>
 
@@ -45,15 +46,32 @@
           <span id="activeUrlHint" class="small subtle"></span>
         </div>
 
-        <label class="field">
-          <span>Run Name</span>
-          <input id="runNameInput" name="runName" type="text" placeholder="onboarding-flow">
-        </label>
+        <div class="field-grid">
+          <label class="field">
+            <span>Run Name</span>
+            <input id="runNameInput" name="runName" type="text" placeholder="onboarding-flow">
+          </label>
 
-        <label class="field">
-          <span>Document Title</span>
-          <input id="documentTitleInput" name="documentTitle" type="text" placeholder="How to Create a Policy">
-        </label>
+          <label class="field">
+            <span>Document Title</span>
+            <input id="documentTitleInput" name="documentTitle" type="text" placeholder="How to Create a Policy">
+          </label>
+        </div>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Capture Mode</span>
+            <select id="captureModeSelect" name="captureMode">
+              <option value="visible">Visible Area</option>
+              <option value="fullpage">Full Page</option>
+              <option value="region">Region</option>
+            </select>
+          </label>
+
+          <div class="shortcut-strip">
+            <p class="small subtle" id="shortcutHint"></p>
+          </div>
+        </div>
 
         <p id="runFolderHint" class="small subtle">
           The run folder will be created on the first capture.
@@ -72,13 +90,13 @@
             class="editor"
             name="narrationText"
             rows="16"
-            placeholder="Type what the learner should hear here. Put your cursor where the next screenshot belongs, then click Quick Capture & Insert or Capture, Crop & Edit."
+            placeholder="Type the walkthrough as you go. Keep the cursor where the next image belongs, then capture the current step."
           ></textarea>
         </label>
 
         <p class="small subtle">
-          Both capture buttons insert a Markdown image tag at the current cursor position and save the screenshot into
-          the run's `screenshots/` folder. The edit flow lets you crop or annotate first.
+          Quick capture inserts the current step immediately. Capture and edit opens the image editor in a new tab, where
+          you can crop, annotate, or redact the screenshot, then save it back into this run.
         </p>
 
         <div class="button-row">
@@ -86,72 +104,73 @@
             Quick Capture & Insert
           </button>
           <button id="captureEditButton" class="button button-secondary" type="button">
-            Capture, Crop & Edit
-          </button>
-          <button id="previewButton" class="button button-secondary" type="button">
-            Preview Markdown
-          </button>
-          <button id="saveMarkdownButton" class="button button-secondary" type="button">
-            Save Markdown
-          </button>
-          <button id="resetRunButton" class="button button-ghost" type="button">
-            Start New Run
+            Capture & Edit
           </button>
         </div>
 
         <p id="statusText" class="status">Ready.</p>
       </section>
 
-      <section id="editorCard" class="card hidden">
+      <section class="card">
         <div class="section-heading">
-          <h2>Image Editor</h2>
-          <span id="editorMeta" class="small subtle"></span>
+          <h2>Smart Assist</h2>
         </div>
 
-        <p id="editorHint" class="small subtle">
-          Drag across the image to select a crop region, then apply it.
+        <p class="small subtle">
+          Suggested titles use page context from each capture. Draft narration rebuilds the script from the current step
+          sequence and image order.
         </p>
 
-        <div class="editor-toolbar">
-          <label class="field compact-field">
-            <span>Tool</span>
-            <select id="editorToolSelect" name="editorTool">
-              <option value="crop">Crop</option>
-              <option value="box">Box</option>
-              <option value="pen">Pen</option>
-            </select>
-          </label>
+        <div class="button-row">
+          <button id="suggestTitlesButton" class="button button-secondary" type="button">
+            Suggest Step Titles
+          </button>
+          <button id="draftNarrationButton" class="button button-secondary" type="button">
+            Draft Narration from Steps
+          </button>
+        </div>
+      </section>
 
-          <label class="field compact-field">
-            <span>Color</span>
-            <input id="editorColorInput" name="editorColor" type="color" value="#d97706">
-          </label>
-
-          <label class="field compact-field">
-            <span>Stroke</span>
-            <input id="editorStrokeInput" name="editorStroke" type="range" min="2" max="18" value="4">
-          </label>
+      <section class="card">
+        <div class="section-heading">
+          <h2>Auto-Step Capture</h2>
+          <span id="autoCaptureBadge" class="badge badge-muted">Off</span>
         </div>
 
-        <div class="canvas-stage">
-          <canvas id="editorCanvas"></canvas>
+        <p class="small subtle">
+          Records a step automatically every time you click in the page: screenshot, click marker, and a drafted
+          instruction.
+        </p>
+
+        <div class="button-row">
+          <button id="autoCaptureToggleButton" class="button button-primary" type="button">
+            Start Auto-Capture
+          </button>
+        </div>
+
+        <p id="autoCaptureStatus" class="small subtle">Not recording.</p>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <h2>Export</h2>
         </div>
 
         <div class="button-row">
-          <button id="applyCropButton" class="button button-secondary" type="button">
-            Apply Crop
+          <button id="saveMarkdownButton" class="button button-secondary" type="button">
+            Save Markdown
           </button>
-          <button id="undoEditButton" class="button button-secondary" type="button">
-            Undo
+          <button id="exportPackageButton" class="button button-primary" type="button">
+            Export LMS Package
           </button>
-          <button id="resetImageButton" class="button button-ghost" type="button">
-            Reset Image
+          <button id="saveStandaloneHtmlButton" class="button button-secondary" type="button">
+            Save Single-File HTML
           </button>
-          <button id="saveEditedCaptureButton" class="button button-primary" type="button">
-            Save & Insert Edited Image
+          <button id="exportScormButton" class="button button-secondary" type="button">
+            Export SCORM 1.2
           </button>
-          <button id="cancelEditorButton" class="button button-ghost" type="button">
-            Cancel
+          <button id="resetRunButton" class="button button-ghost" type="button">
+            Start New Run
           </button>
         </div>
       </section>
@@ -165,10 +184,10 @@
 
       <section class="card">
         <div class="section-heading">
-          <h2>Captured Screens</h2>
+          <h2>Step Manager</h2>
         </div>
         <div id="captureList" class="capture-list">
-          <p class="small subtle">No screenshots captured yet.</p>
+          <p class="small subtle">No captured steps yet.</p>
         </div>
       </section>
 
@@ -180,6 +199,6 @@
       </section>
     </main>
 
-    <script src="sidepanel.js"></script>
+    <script type="module" src="js/main.js"></script>
   </body>
 </html>

@@ -1,36 +1,73 @@
 # Heracles Screen Capture Coach
 
-This project is a Chrome extension MVP for documenting a web application as LMS-ready Markdown with inline screenshots.
+This project is a Chrome extension for documenting a web application as LMS-ready Markdown with inline screenshots, step management, redaction tools, and packaged exports.
 
 ## What it does
 
 - Opens in a Chrome side panel so you can keep it visible while navigating your app.
 - Gives you one live narration box where you type the walkthrough yourself.
-- Captures the current tab as a `.png`.
+- Captures the current step as a `.png` using visible-area, full-page, or region mode.
+- Auto-step capture mode: records a documented step on every click in the page (screenshot, numbered click marker, drafted instruction), Scribe-style.
+- Supports keyboard shortcuts for quick capture and capture-and-edit.
 - Inserts a Markdown image tag at the current cursor position in your narration.
-- Saves screenshots into a run folder like `onboarding-flow/screenshots/001-dashboard.png`
-- Saves the combined narration as a single Markdown file like `onboarding-flow/onboarding-flow.md`
+- Saves screenshots into a run folder under `screenshots/`.
+- Opens captures in a full-tab image editor with non-destructive annotations: arrows, lines, boxes, ellipses, freehand pen, highlighter, text, callouts, numbered step badges, crop, and solid redaction.
+- Lets you rename, reorder (drag-and-drop or buttons), reinsert, and delete captured steps, with thumbnails in the step list.
+- Suggests step titles from page context and can draft narration from the current step sequence.
+- Saves the combined narration as a single Markdown file.
+- Exports a zipped LMS package, a SCORM 1.2 package, or a fully self-contained single-file HTML document.
 
 ## Authoring flow
 
 1. Type your narration into the live script box.
 2. Place the cursor where the next image should appear.
-3. Click **Quick Capture & Insert**.
-4. Keep moving through the app and repeat.
-5. Click **Save Markdown** when you want the latest `.md` file written to disk.
+3. Choose the capture mode you want: visible area, full page, or region.
+4. Click **Quick Capture & Insert** or use the keyboard shortcut.
+5. Keep moving through the app and repeat.
+6. Use the step manager to retitle, reorder, reinsert, or delete captures.
+7. Click **Save Markdown** when you want the latest `.md` file written to disk.
+8. Click **Export LMS Package**, **Export SCORM 1.2**, or **Save Single-File HTML** for a handoff package.
 
-## Crop and edit mode
+Or flip on **Auto-Step Capture** and just click through the task in the page — each click becomes a step with a screenshot, a numbered click badge, and a drafted "Click **Save**"-style instruction appended to the narration.
 
-If you need only part of the screen or want to mark up the image before saving it:
+## The image editor
 
-1. Click **Capture, Crop & Edit**
-2. Use the editor tools:
-   - `Crop` to keep only a portion of the screenshot
-   - `Box` to draw a rectangular callout
-   - `Pen` to freehand annotate
-3. Click **Save & Insert Edited Image**
+**Capture & Edit** (or **Edit Image** on any step) opens the screenshot in a full-tab editor. Annotations are objects, not baked pixels — every shape stays selectable, movable, resizable, and deletable across editing sessions, because the original bitmap, the annotation list, and the flattened export are stored separately.
 
-The edited image is saved into the same `screenshots/` folder and the Markdown tag is inserted at your cursor position.
+- Tools: Select (V), Arrow (A), Line (L), Box (R), Ellipse (E), Pen (P), Highlight (H), Text (T), Callout (C), numbered Badge (N), Redact (D), Crop (X), plus pan (Space-drag) and zoom (Ctrl+wheel, +/−, 0 to fit).
+- Undo/redo (Ctrl+Z / Ctrl+Y), arrow-key nudging, double-click to edit text and badge numbers.
+- **Suggested Redactions** previews automatically detected emails, names, IDs, and secrets from the page and converts them to redaction shapes in one click.
+- Redactions are burned destructively into both the stored original and the exported image on save — redacted pixels do not survive anywhere. All other annotations remain editable.
+- Saving writes the flattened PNG back into the run and (for new captures) inserts the Markdown tag at your cursor in the side panel.
+
+## Keyboard shortcuts
+
+- `Cmd+Shift+1` on macOS or `Ctrl+Shift+1` on Windows/Linux captures with the current mode and inserts the image.
+- `Cmd+Shift+2` on macOS or `Ctrl+Shift+2` on Windows/Linux captures with the current mode and opens the editor.
+
+Shortcuts work even when the side panel is closed — the command is queued, the panel opens, and the capture runs.
+
+## Step manager
+
+Each capture becomes a step you can manage inside the side panel:
+
+- thumbnail preview (click it to open the editor)
+- rename the step title
+- drag-and-drop reorder via the grip handle (Move Up/Down buttons still work)
+- reinsert the image tag into the narration at the current cursor
+- delete the step from the run
+
+## Smart assist
+
+- **Suggest Step Titles** refreshes titles from the captured page context.
+- **Draft Narration from Steps** rebuilds the markdown body from the current step sequence and image order.
+
+## Exports
+
+- **Save Markdown** — the combined narration as a `.md` file in the run folder.
+- **Export LMS Package** — a `.zip` with the Markdown, an `index.html` version, a `steps.json` manifest, and all screenshots.
+- **Export SCORM 1.2** — a SCORM-conformant `.zip` (`imsmanifest.xml` at the root, an `index.html` SCO with a defensive SCORM API shim that reports completion, and all screenshots) for upload to any SCORM 1.2 LMS.
+- **Save Single-File HTML** — one self-contained `.html` with every screenshot embedded as base64; nothing else to ship.
 
 ## How local saving works
 
@@ -45,21 +82,29 @@ Chrome extensions should not have unrestricted access to the full local filesyst
 3. For silent, unrestricted disk writes:
    add a native companion app and connect to it with Native Messaging. That is only necessary if you need behavior beyond the browser's normal security model.
 
-This MVP implements options 1 and 2.
+This extension implements options 1 and 2.
+
+## Architecture
+
+- `manifest.json` — MV3, side panel, commands, icons.
+- `service-worker.js` — side-panel behavior, capture relay, shortcut handling (with a `storage.session` handoff so shortcuts survive the panel not being open yet).
+- `sidepanel.html` / `sidepanel.css` / `js/` — the side panel as ES modules: `main.js` (wiring), `state.js`, `constants.js`, `db.js` (IndexedDB), `capture.js` (visible/region/full-page with rate-limit throttling, lazy-load priming, and sticky-header hiding), `page-scripts.js` (self-contained injected functions), `autocapture.js`, `editor-launch.js` (editor-tab lifecycle), `steps-ui.js`, `export.js`, `export-formats.js` (SCORM + single-file HTML), `markdown.js`, `zip.js`, `image-utils.js`, `ui.js`.
+- `editor.html` / `editor.css` / `editor.js` — the full-tab annotation editor. Open it as `editor.html?dev=1` outside the extension for standalone testing with any local image.
+- Storage: capture metadata in `chrome.storage.local`; image blobs (flattened asset + un-annotated original) and annotation objects in IndexedDB, so steps remain re-editable across sessions.
 
 ## Load the extension
 
 1. Open `chrome://extensions`
 2. Turn on **Developer mode**
 3. Click **Load unpacked**
-4. Select this folder:
-   `path-to-this-project`
+4. Select this project folder
 5. Click the extension icon to open the side panel
 
 ## Suggested next step
 
-If you want, the next iteration can add one of these:
+Possible next iterations:
 
-1. full-page scrolling screenshots instead of visible-viewport only
-2. keyboard shortcuts for capture-and-insert while you are narrating
-3. direct export packaging for your LMS builder's preferred format
+1. template-aware exports for a specific LMS target (SCORM 2004, xAPI)
+2. DOCX/PDF export
+3. collaborative review comments or approval states per step
+4. blur/spotlight de-emphasis tools in the editor (kept out so far because blur is not safe for true redaction)

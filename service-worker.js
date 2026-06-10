@@ -38,3 +38,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   return true;
 });
+
+chrome.commands.onCommand.addListener(async (command) => {
+  if (!["quick-capture", "capture-and-edit"].includes(command)) {
+    return;
+  }
+
+  try {
+    const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+
+    if (chrome.sidePanel?.open && activeTab?.windowId) {
+      try {
+        await chrome.sidePanel.open({ windowId: activeTab.windowId });
+      } catch (error) {
+        console.warn("Unable to auto-open the side panel for a shortcut command.", error);
+      }
+    }
+
+    const pendingShortcutCommand = { command, ts: Date.now() };
+    await chrome.storage.session.set({ pendingShortcutCommand });
+
+    try {
+      await chrome.runtime.sendMessage({
+        type: "shortcut-command",
+        command,
+        ts: pendingShortcutCommand.ts
+      });
+    } catch (error) {
+      // The panel may still be loading; it picks up pendingShortcutCommand on init.
+    }
+  } catch (error) {
+    console.error("Unable to relay the shortcut command to the side panel.", error);
+  }
+});
