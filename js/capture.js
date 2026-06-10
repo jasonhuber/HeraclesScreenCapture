@@ -54,8 +54,20 @@ export function validateActiveTab(tab) {
 }
 
 export async function getActiveTab() {
-  const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  return tabs[0];
+  const [focusedTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+
+  if (focusedTab && !/^chrome-extension:/i.test(focusedTab.url || "")) {
+    return focusedTab;
+  }
+
+  // The floating window counts as the last-focused window; target the last-focused normal browser window instead.
+  try {
+    const normalWindow = await chrome.windows.getLastFocused({ windowTypes: ["normal"] });
+    const [normalTab] = await chrome.tabs.query({ active: true, windowId: normalWindow.id });
+    return normalTab || focusedTab;
+  } catch (error) {
+    return focusedTab;
+  }
 }
 
 export async function captureVisibleTab(windowId) {

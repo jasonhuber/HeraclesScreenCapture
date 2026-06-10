@@ -41,6 +41,15 @@ Or flip on **Auto-Step Capture** and just click through the task in the page —
 - Redactions are burned destructively into both the stored original and the exported image on save — redacted pixels do not survive anywhere. All other annotations remain editable.
 - Saving writes the flattened PNG back into the run cache and (for new captures) inserts the Markdown tag at your cursor in the side panel; files land on disk when you save or export the run.
 
+## Floating window mode
+
+The side panel takes a fixed slice of the browser window, so the header has **Open as Floating Window**: it moves the
+whole UI into a small popup window you can drag anywhere, resize, park on another monitor, or minimize when you want it
+out of the way. Capture, auto-step recording, dictation, and exports all run from the floating window; the side panel
+parks itself with a one-line notice (Focus / Use Side Panel Instead) so the two never fight over the same run. Closing
+the floating window hands control back to the side panel automatically. Chrome does not offer always-on-top windows to
+extensions, so the float window layers like any normal window.
+
 ## Voice dictation
 
 Click **Dictate** in the Live Narration card (or press `Ctrl+Shift+3` / `Cmd+Shift+3`) and speak — finalized phrases are inserted at your cursor with smart spacing and capitalization, and an interim line previews what's being recognized. Spoken commands: "period", "comma", "question mark", "exclamation mark", "colon", "semicolon", "new line", "new paragraph".

@@ -447,3 +447,20 @@ textarea {
   margin: 2px 0 0;
   accent-color: var(--accent);
 }
+
+/* --- Floating window mode --- */
+.hero-actions {
+  margin-top: 12px;
+}
+
+body.float-mode .hero {
+  padding: 12px 16px;
+}
+
+body.float-mode .hero h1 {
+  font-size: 16px;
+}
+
+body.float-mode .hero .subtle {
+  display: none;
+}

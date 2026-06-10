@@ -26,6 +26,15 @@ import {
 import { initAutoCapture } from "./autocapture.js";
 import { initDictation, toggleDictation } from "./dictation.js";
 import {
+  detachToFloatingWindow,
+  getVerifiedFloatWindowId,
+  isFloatWindow,
+  registerFloatInstance,
+  renderPassivePanel,
+  returnToSidePanel,
+  watchFloatChanges
+} from "./float-mode.js";
+import {
   chooseExportFolder,
   clearStoredFolder,
   exportLmsPackage,
@@ -61,10 +70,27 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function initialize() {
+  if (isFloatWindow()) {
+    await registerFloatInstance();
+  } else {
+    const floatWindowId = await getVerifiedFloatWindowId();
+
+    if (floatWindowId !== null) {
+      renderPassivePanel(floatWindowId);
+      watchFloatChanges();
+      return;
+    }
+  }
+
+  watchFloatChanges();
   cacheElements();
   bindEvents();
   initExportFormats();
   renderShortcutHint();
+
+  if (isFloatWindow()) {
+    elements.floatToggleButton.textContent = "Return to Side Panel";
+  }
 
   await restoreSettings();
   await refreshFolderStatus();
@@ -106,6 +132,7 @@ function cacheElements() {
   elements.activeUrlHint = document.getElementById("activeUrlHint");
   elements.runFolderHint = document.getElementById("runFolderHint");
   elements.captureList = document.getElementById("captureList");
+  elements.floatToggleButton = document.getElementById("floatToggleButton");
 }
 
 function bindEvents() {
@@ -168,6 +195,14 @@ function bindEvents() {
 
   elements.resetRunButton.addEventListener("click", () => {
     void resetRun();
+  });
+
+  elements.floatToggleButton.addEventListener("click", () => {
+    if (isFloatWindow()) {
+      void returnToSidePanel();
+    } else {
+      void detachToFloatingWindow();
+    }
   });
 
   elements.captureList.addEventListener("click", (event) => {

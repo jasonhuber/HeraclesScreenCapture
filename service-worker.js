@@ -39,6 +39,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
+chrome.windows.onRemoved.addListener(async (windowId) => {
+  try {
+    const stored = await chrome.storage.session.get({ heraclesFloatWindow: null });
+
+    if (stored.heraclesFloatWindow?.windowId === windowId) {
+      await chrome.storage.session.remove("heraclesFloatWindow");
+    }
+  } catch (error) {
+    // Session storage may be unavailable during shutdown; nothing to clean up then.
+  }
+});
+
 chrome.commands.onCommand.addListener(async (command) => {
   if (!["quick-capture", "capture-and-edit", "toggle-dictation"].includes(command)) {
     return;
@@ -46,8 +58,9 @@ chrome.commands.onCommand.addListener(async (command) => {
 
   try {
     const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const { heraclesFloatWindow = null } = await chrome.storage.session.get({ heraclesFloatWindow: null });
 
-    if (chrome.sidePanel?.open && activeTab?.windowId) {
+    if (!heraclesFloatWindow && chrome.sidePanel?.open && activeTab?.windowId) {
       try {
         await chrome.sidePanel.open({ windowId: activeTab.windowId });
       } catch (error) {
