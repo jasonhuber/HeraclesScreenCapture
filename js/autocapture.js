@@ -6,12 +6,13 @@ import {
   validateActiveTab
 } from "./capture.js";
 import { storeCaptureAnnotations, storeCaptureAsset, storeCaptureOriginal } from "./db.js";
-import { saveExportFile } from "./export.js";
+import { prepareDictatedChunk, startRoutedDictation, stopRoutedDictation } from "./dictation.js";
 import { canvasToBlob, clampNumber, dataUrlToBlob, loadImage } from "./image-utils.js";
 import { buildCaptureFileName, buildCaptureMarkdown, normalizeInlineText } from "./markdown.js";
 import {
   ensureRunFolderSlug,
   getCaptureById,
+  refreshActionAvailability,
   refreshRunFolderHint,
   renderPreview,
   saveSettings,
@@ -36,11 +37,27 @@ const autoState = {
 let toggleButton = null;
 let badgeElement = null;
 let statusLineElement = null;
+let voiceCheckbox = null;
+
+const recordState = {
+  currentStep: null
+};
 
 export function initAutoCapture() {
   toggleButton = document.getElementById("autoCaptureToggleButton");
   badgeElement = document.getElementById("autoCaptureBadge");
   statusLineElement = document.getElementById("autoCaptureStatus");
+  voiceCheckbox = document.getElementById("autoCaptureVoiceCheckbox");
+
+  if (voiceCheckbox) {
+    void chrome.storage.local.get({ autoCaptureVoice: true }).then((stored) => {
+      voiceCheckbox.checked = Boolean(stored.autoCaptureVoice);
+    });
+
+    voiceCheckbox.addEventListener("change", () => {
+      void chrome.storage.local.set({ autoCaptureVoice: voiceCheckbox.checked });
+    });
+  }
 
   if (!toggleButton || !badgeElement || !statusLineElement) {
     console.warn("Auto-capture UI elements are missing; auto-step capture is unavailable.");
@@ -80,12 +97,19 @@ async function startAutoCapture() {
     autoState.droppedClicks = 0;
     autoState.lastStepLabel = "";
     autoState.lastError = "";
+    recordState.currentStep = null;
 
     chrome.tabs.onUpdated.addListener(handleRecordedTabUpdated);
     chrome.tabs.onRemoved.addListener(handleRecordedTabRemoved);
 
     updateAutoCaptureUi();
-    setStatus("Auto-capture recording. Every click in the page becomes a documented step.", "success");
+
+    if (voiceCheckbox?.checked) {
+      setStatus("Auto-capture recording with voice. Click through the app and narrate out loud.", "success");
+      await startRoutedDictation(handleRoutedSpeech);
+    } else {
+      setStatus("Auto-capture recording. Every click in the page becomes a documented step.", "success");
+    }
   } catch (error) {
     console.error("Unable to start auto-capture.", error);
     setStatus(error.message || "Unable to start auto-capture on this tab.", "warn");
@@ -100,9 +124,12 @@ async function stopAutoCapture(statusMessage) {
   autoState.recording = false;
   const tabId = autoState.recordedTabId;
   autoState.recordedTabId = null;
+  recordState.currentStep = null;
 
   chrome.tabs.onUpdated.removeListener(handleRecordedTabUpdated);
   chrome.tabs.onRemoved.removeListener(handleRecordedTabRemoved);
+
+  await stopRoutedDictation();
 
   if (typeof tabId === "number") {
     try {
@@ -251,13 +278,17 @@ async function processAutoClick(payload) {
     shapes: [marker.badgeShape]
   });
   await storeCaptureAsset(captureMeta.id, flattenedBlob);
-  await saveExportFile(runFolderSlug, captureMeta.relativeImagePath, flattenedBlob);
 
   state.captures.push(captureMeta);
   syncCaptureOrdering({ updateNarration: false });
 
   const currentCapture = getCaptureById(captureMeta.id) || captureMeta;
-  appendStepNarration(currentCapture, label);
+  const narrationParts = appendStepNarration(currentCapture, label);
+  recordState.currentStep = {
+    paragraph: "",
+    canned: narrationParts.instruction,
+    anchor: narrationParts.image
+  };
 
   await saveSettings();
   refreshCaptureList();
@@ -325,8 +356,61 @@ function appendStepNarration(capture, label) {
   const nextValue = trimmedEnd.length === 0 ? `${block}\n` : `${trimmedEnd}\n\n${block}\n`;
 
   elements.narrationInput.value = nextValue;
+  syncNarrationCursorToEnd();
 
-  const endPosition = nextValue.length;
+  return { instruction, image };
+}
+
+function handleRoutedSpeech(rawText) {
+  const step = recordState.currentStep;
+
+  if (!step) {
+    appendSpeechAtEnd(prepareDictatedChunk("", rawText));
+    return;
+  }
+
+  const chunk = prepareDictatedChunk(step.paragraph, rawText);
+
+  if (!chunk) {
+    return;
+  }
+
+  const nextParagraph = step.paragraph ? `${step.paragraph}${chunk}` : chunk.trim();
+  const target = `${step.paragraph || step.canned}\n\n${step.anchor}`;
+  const replacement = `${nextParagraph}\n\n${step.anchor}`;
+  const narration = elements.narrationInput;
+
+  if (!narration.value.includes(target)) {
+    appendSpeechAtEnd(chunk);
+    return;
+  }
+
+  narration.value = narration.value.split(target).join(replacement);
+  step.paragraph = nextParagraph;
+  syncNarrationCursorToEnd();
+  renderPreview();
+  refreshActionAvailability();
+  void saveSettings();
+}
+
+function appendSpeechAtEnd(chunk) {
+  const text = String(chunk || "").trim();
+
+  if (!text) {
+    return;
+  }
+
+  const narration = elements.narrationInput;
+  const trimmedEnd = narration.value.replace(/\s+$/, "");
+  narration.value = trimmedEnd.length === 0 ? `${text}\n` : `${trimmedEnd}\n\n${text}\n`;
+  syncNarrationCursorToEnd();
+  renderPreview();
+  refreshActionAvailability();
+  void saveSettings();
+}
+
+function syncNarrationCursorToEnd() {
+  const endPosition = elements.narrationInput.value.length;
   elements.narrationInput.selectionStart = endPosition;
   elements.narrationInput.selectionEnd = endPosition;
   setLastNarrationSelection({ start: endPosition, end: endPosition });

@@ -144,8 +144,13 @@
 
         <p class="small subtle">
           Records a step automatically every time you click in the page: screenshot, click marker, and a drafted
-          instruction.
+          instruction. Captures stay in memory until you save or export the run.
         </p>
+
+        <label class="checkbox-row small">
+          <input id="autoCaptureVoiceCheckbox" type="checkbox" checked>
+          <span>Capture my voice too — spoken narration lands under each step automatically.</span>
+        </label>
 
         <div class="button-row">
           <button id="autoCaptureToggleButton" class="button button-primary" type="button">
@@ -163,7 +168,7 @@
 
         <div class="button-row">
           <button id="saveMarkdownButton" class="button button-secondary" type="button">
-            Save Markdown
+            Save Run to Folder
           </button>
           <button id="exportPackageButton" class="button button-primary" type="button">
             Export LMS Package

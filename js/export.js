@@ -183,7 +183,7 @@ export async function saveMarkdownDocument() {
   }
 
   setBusy(true);
-  setStatus("Saving the combined Markdown file...");
+  setStatus("Saving the run (Markdown + screenshots)...");
 
   try {
     const runFolderSlug = await ensureRunFolderSlug();
@@ -195,19 +195,34 @@ export async function saveMarkdownDocument() {
       new Blob([markdown], { type: "text/markdown" })
     );
 
+    let screenshotCount = 0;
+
+    for (const capture of state.captures) {
+      const assetBlob = await getCaptureAssetBlob(capture);
+
+      if (!assetBlob) {
+        throw new Error(
+          `The image for step ${capture.indexLabel} is missing from the extension cache. Re-capture or re-edit that step before saving the run.`
+        );
+      }
+
+      await saveExportFile(runFolderSlug, capture.relativeImagePath, assetBlob);
+      screenshotCount += 1;
+    }
+
     await saveSettings();
     refreshRunFolderHint();
 
     elements.lastExport.innerHTML = [
       `<strong>Markdown</strong>: ${escapeHtml(saveResult.path)}`,
       `<strong>Mode</strong>: ${escapeHtml(saveResult.mode)}`,
-      `<strong>Captured steps</strong>: ${escapeHtml(String(state.captures.length))}`
+      `<strong>Screenshots written</strong>: ${escapeHtml(String(screenshotCount))}`
     ].join("<br>");
 
-    setStatus("Markdown saved successfully.", "success");
+    setStatus(`Run saved: Markdown plus ${screenshotCount} screenshot${screenshotCount === 1 ? "" : "s"}.`, "success");
   } catch (error) {
-    console.error("Markdown save failed.", error);
-    setStatus(error.message || "Unable to save the Markdown file.", "warn");
+    console.error("Run save failed.", error);
+    setStatus(error.message || "Unable to save the run to disk.", "warn");
   } finally {
     setBusy(false);
   }

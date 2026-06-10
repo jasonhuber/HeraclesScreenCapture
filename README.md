@@ -8,10 +8,10 @@ This project is a Chrome extension for documenting a web application as LMS-read
 - Gives you one live narration box where you type the walkthrough yourself.
 - Voice dictation: speak your narration instead of typing, with spoken punctuation commands and live interim preview.
 - Captures the current step as a `.png` using visible-area, full-page, or region mode.
-- Auto-step capture mode: records a documented step on every click in the page (screenshot, numbered click marker, drafted instruction), Scribe-style.
+- Auto-step capture mode: records a documented step on every click in the page (screenshot, numbered click marker, drafted instruction), Scribe-style — optionally with simultaneous voice narration that lands under each step automatically.
 - Supports keyboard shortcuts for quick capture and capture-and-edit.
 - Inserts a Markdown image tag at the current cursor position in your narration.
-- Saves screenshots into a run folder under `screenshots/`.
+- Keeps captures cached in the extension while you work — nothing is written to disk on each click; the run folder (Markdown + `screenshots/`) is written in one go when you save or export.
 - Opens captures in a full-tab image editor with non-destructive annotations: arrows, lines, boxes, ellipses, freehand pen, highlighter, text, callouts, numbered step badges, crop, and solid redaction.
 - Lets you rename, reorder (drag-and-drop or buttons), reinsert, and delete captured steps, with thumbnails in the step list.
 - Suggests step titles from page context and can draft narration from the current step sequence.
@@ -26,10 +26,10 @@ This project is a Chrome extension for documenting a web application as LMS-read
 4. Click **Quick Capture & Insert** or use the keyboard shortcut.
 5. Keep moving through the app and repeat.
 6. Use the step manager to retitle, reorder, reinsert, or delete captures.
-7. Click **Save Markdown** when you want the latest `.md` file written to disk.
+7. Click **Save Run to Folder** when you want the `.md` file and all screenshots written to disk in one go.
 8. Click **Export LMS Package**, **Export SCORM 1.2**, or **Save Single-File HTML** for a handoff package.
 
-Or flip on **Auto-Step Capture** and just click through the task in the page — each click becomes a step with a screenshot, a numbered click badge, and a drafted "Click **Save**"-style instruction appended to the narration.
+Or flip on **Auto-Step Capture** and just click through the task in the page — each click becomes a step with a screenshot, a numbered click badge, and a drafted "Click **Save**"-style instruction appended to the narration. With **Capture my voice too** checked, whatever you say after a click is transcribed and replaces that step's drafted instruction automatically — narrate the whole walkthrough hands-free, then save or export once at the end.
 
 ## The image editor
 
@@ -39,11 +39,13 @@ Or flip on **Auto-Step Capture** and just click through the task in the page —
 - Undo/redo (Ctrl+Z / Ctrl+Y), arrow-key nudging, double-click to edit text and badge numbers.
 - **Suggested Redactions** previews automatically detected emails, names, IDs, and secrets from the page and converts them to redaction shapes in one click.
 - Redactions are burned destructively into both the stored original and the exported image on save — redacted pixels do not survive anywhere. All other annotations remain editable.
-- Saving writes the flattened PNG back into the run and (for new captures) inserts the Markdown tag at your cursor in the side panel.
+- Saving writes the flattened PNG back into the run cache and (for new captures) inserts the Markdown tag at your cursor in the side panel; files land on disk when you save or export the run.
 
 ## Voice dictation
 
-Click **Dictate** in the Live Narration card (or press `Ctrl+Shift+3` / `Cmd+Shift+3`) and speak — finalized phrases are inserted at your cursor with smart spacing and capitalization, and an interim line previews what's being recognized. Spoken commands: "period", "comma", "question mark", "exclamation mark", "colon", "semicolon", "new line", "new paragraph". Combine it with Auto-Step Capture and you can narrate a walkthrough completely hands-free while the screenshots collect themselves.
+Click **Dictate** in the Live Narration card (or press `Ctrl+Shift+3` / `Cmd+Shift+3`) and speak — finalized phrases are inserted at your cursor with smart spacing and capitalization, and an interim line previews what's being recognized. Spoken commands: "period", "comma", "question mark", "exclamation mark", "colon", "semicolon", "new line", "new paragraph".
+
+Auto-Step Capture has its own voice mode (the **Capture my voice too** checkbox): dictation starts and stops with the recording, and instead of following your cursor, each spoken phrase is routed under the step you most recently clicked — replacing the drafted "Click **X**." line with your actual narration. Speech before the first click becomes an intro paragraph.
 
 Engine details: dictation uses Chrome's built-in Web Speech API (audio is processed by Google's speech service — keep that in mind for sensitive environments). The first start opens a one-time microphone permission page. Chrome historically blocks the Speech API in some extension contexts, so if the side panel engine fails, the extension automatically falls back to running recognition inside the active page (Chrome may then ask for mic permission per site); the working engine is remembered.
 
@@ -78,6 +80,10 @@ Each capture becomes a step you can manage inside the side panel:
 - **Save Single-File HTML** — one self-contained `.html` with every screenshot embedded as base64; nothing else to ship.
 
 ## How local saving works
+
+Captures live in the extension's IndexedDB cache while you work — nothing touches the disk per click, which keeps
+Dropbox-style synced folders from churning during a recording session. **Save Run to Folder** writes the Markdown
+plus every screenshot in one pass; the export buttons each write a single artifact.
 
 Chrome extensions should not have unrestricted access to the full local filesystem. The practical options are:
 

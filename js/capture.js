@@ -19,7 +19,6 @@ import {
   sleep
 } from "./image-utils.js";
 import { storeCaptureAsset } from "./db.js";
-import { saveExportFile } from "./export.js";
 import {
   buildCaptureFileName,
   createCaptureId,
@@ -351,7 +350,6 @@ export async function finalizeNewCapture(session, blob, edited) {
   };
 
   await storeCaptureAsset(captureMeta.id, blob);
-  const saveResult = await saveExportFile(session.runFolderSlug, captureMeta.relativeImagePath, blob);
 
   state.captures.push(captureMeta);
   syncCaptureOrdering({ updateNarration: false });
@@ -365,9 +363,8 @@ export async function finalizeNewCapture(session, blob, edited) {
   refreshRunFolderHint();
 
   elements.lastExport.innerHTML = [
-    `<strong>Screenshot</strong>: ${escapeHtml(saveResult.path)}`,
-    `<strong>Mode</strong>: ${escapeHtml(saveResult.mode)}`,
-    `<strong>Inserted tag</strong>: ${escapeHtml(currentCapture.relativeImagePath)}`
+    `<strong>Screenshot</strong>: ${escapeHtml(currentCapture.relativeImagePath)} (cached in extension)`,
+    `<strong>Storage</strong>: In-memory until you save or export the run`
   ].join("<br>");
 
   setStatus(

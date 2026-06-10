@@ -38,6 +38,7 @@ const dictationState = {
 
 let dictateButton = null;
 let interimElement = null;
+let dictationSink = null;
 
 export function initDictation() {
   dictateButton = document.getElementById("dictateButton");
@@ -63,6 +64,23 @@ export async function toggleDictation() {
   }
 
   await startDictation();
+}
+
+export async function startRoutedDictation(sink) {
+  dictationSink = typeof sink === "function" ? sink : null;
+  await startDictation();
+}
+
+export async function stopRoutedDictation() {
+  if (!dictationSink) {
+    return;
+  }
+
+  dictationSink = null;
+
+  if (dictationState.active) {
+    await stopDictation("Voice capture stopped with auto-capture.");
+  }
 }
 
 async function startDictation() {
@@ -98,7 +116,8 @@ async function startDictation() {
   startPanelEngine();
 }
 
-async function stopDictation(message, tone = "info") {
+export async function stopDictation(message, tone = "info") {
+  dictationSink = null;
   dictationState.active = false;
   dictationState.stopRequested = true;
   dictationState.interimText = "";
@@ -426,7 +445,17 @@ function processRecognitionItems(items) {
     }
 
     if (item.isFinal) {
-      insertDictatedText(item.text);
+      if (dictationSink) {
+        try {
+          dictationSink(item.text);
+        } catch (error) {
+          console.error("Routed dictation sink failed; inserting at the cursor instead.", error);
+          insertDictatedText(item.text);
+        }
+      } else {
+        insertDictatedText(item.text);
+      }
+
       markEngineWorking();
     } else {
       interimText += item.text;
@@ -446,33 +475,36 @@ function markEngineWorking() {
   }
 }
 
-function insertDictatedText(rawText) {
+export function prepareDictatedChunk(before, rawText) {
   let chunk = applySpokenCommands(String(rawText || ""));
 
   if (!chunk.trim()) {
-    if (!/\n/.test(chunk)) {
-      return;
-    }
-
-    chunk = chunk.replace(/[^\n]/g, "");
+    return /\n/.test(chunk) ? chunk.replace(/[^\n]/g, "") : "";
   }
 
+  chunk = chunk.trim();
+
+  if (before.length > 0 && !/\s$/.test(before) && !/^[.,!?;:\n]/.test(chunk)) {
+    chunk = ` ${chunk}`;
+  }
+
+  if (shouldCapitalizeAfter(before)) {
+    chunk = capitalizeFirstLetter(chunk);
+  }
+
+  return chunk;
+}
+
+function insertDictatedText(rawText) {
   const currentValue = elements.narrationInput.value;
   const selectionStart = clampSelection(lastNarrationSelection.start, currentValue.length);
   const selectionEnd = clampSelection(lastNarrationSelection.end, currentValue.length);
   const before = currentValue.slice(0, selectionStart);
   const after = currentValue.slice(selectionEnd);
+  const chunk = prepareDictatedChunk(before, rawText);
 
-  if (chunk.trim()) {
-    chunk = chunk.trim();
-
-    if (before.length > 0 && !/\s$/.test(before) && !/^[.,!?;:\n]/.test(chunk)) {
-      chunk = ` ${chunk}`;
-    }
-
-    if (shouldCapitalizeAfter(before)) {
-      chunk = capitalizeFirstLetter(chunk);
-    }
+  if (!chunk) {
+    return;
   }
 
   const updatedValue = `${before}${chunk}${after}`;

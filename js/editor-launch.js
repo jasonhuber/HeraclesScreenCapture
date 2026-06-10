@@ -6,7 +6,7 @@ import {
   storeCaptureAsset
 } from "./db.js";
 import { cloneRects, dataUrlToBlob } from "./image-utils.js";
-import { getCaptureAssetBlob, saveExportFile } from "./export.js";
+import { getCaptureAssetBlob } from "./export.js";
 import { escapeHtml } from "./markdown.js";
 import {
   ensureRunFolderSlug,
@@ -233,25 +233,18 @@ async function applySavedResultToNewCapture(result, pendingEntry, captureId) {
   const currentCapture = getCaptureById(newCapture.id) || newCapture;
   insertCaptureReference(currentCapture);
 
-  const runFolderSlug =
-    pendingEntry?.runFolderSlug || currentCapture.runFolderSlug || state.runFolderSlug || await ensureRunFolderSlug();
-  const saveResult = await writeFlattenedCaptureToDisk(currentCapture, runFolderSlug);
-
   await saveSettings();
   refreshCaptureList();
   renderPreview();
   refreshRunFolderHint();
   refreshActionAvailability();
 
-  if (saveResult) {
-    elements.lastExport.innerHTML = [
-      `<strong>Screenshot</strong>: ${escapeHtml(saveResult.path)}`,
-      `<strong>Mode</strong>: ${escapeHtml(saveResult.mode)}`,
-      `<strong>Inserted tag</strong>: ${escapeHtml(currentCapture.relativeImagePath)}`
-    ].join("<br>");
+  elements.lastExport.innerHTML = [
+    `<strong>Screenshot</strong>: ${escapeHtml(currentCapture.relativeImagePath)} (cached in extension)`,
+    `<strong>Storage</strong>: In-memory until you save or export the run`
+  ].join("<br>");
 
-    setStatus(`Edited step ${currentCapture.indexLabel} saved and inserted into the narration.`, "success");
-  }
+  setStatus(`Edited step ${currentCapture.indexLabel} saved and inserted into the narration.`, "success");
 }
 
 async function applySavedResultToExistingCapture(result, pendingEntry, captureId) {
@@ -266,44 +259,17 @@ async function applySavedResultToExistingCapture(result, pendingEntry, captureId
   existingCapture.assetWidth = Number(result.width) || existingCapture.assetWidth;
   existingCapture.assetHeight = Number(result.height) || existingCapture.assetHeight;
 
-  const runFolderSlug =
-    pendingEntry?.runFolderSlug || existingCapture.runFolderSlug || state.runFolderSlug || await ensureRunFolderSlug();
-  const saveResult = await writeFlattenedCaptureToDisk(existingCapture, runFolderSlug);
-
   await saveSettings();
   refreshCaptureList();
   renderPreview();
   refreshActionAvailability();
 
-  if (saveResult) {
-    elements.lastExport.innerHTML = [
-      `<strong>Screenshot</strong>: ${escapeHtml(saveResult.path)}`,
-      `<strong>Mode</strong>: ${escapeHtml(saveResult.mode)}`,
-      `<strong>Updated step</strong>: ${escapeHtml(existingCapture.indexLabel)}`
-    ].join("<br>");
+  elements.lastExport.innerHTML = [
+    `<strong>Screenshot</strong>: ${escapeHtml(existingCapture.relativeImagePath)} (cached in extension)`,
+    `<strong>Updated step</strong>: ${escapeHtml(existingCapture.indexLabel)}`
+  ].join("<br>");
 
-    setStatus(`Updated the saved image for step ${existingCapture.indexLabel}.`, "success");
-  }
-}
-
-async function writeFlattenedCaptureToDisk(capture, runFolderSlug) {
-  const flattenedBlob = await getCaptureAsset(capture.id);
-
-  if (!flattenedBlob) {
-    setStatus(
-      `Step ${capture.indexLabel} was saved in the editor, but its image is missing from the extension cache.`,
-      "warn"
-    );
-    return null;
-  }
-
-  try {
-    return await saveExportFile(runFolderSlug, capture.relativeImagePath, flattenedBlob);
-  } catch (error) {
-    console.error("Unable to write the edited image to disk.", error);
-    setStatus(`Step ${capture.indexLabel} was saved, but writing the image to disk failed.`, "warn");
-    return null;
-  }
+  setStatus(`Updated the image for step ${existingCapture.indexLabel}.`, "success");
 }
 
 async function removePendingResultRecords(sessionId) {

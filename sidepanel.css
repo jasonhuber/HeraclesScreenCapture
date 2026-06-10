@@ -433,3 +433,17 @@ textarea {
   font-style: italic;
   min-height: 1.3em;
 }
+
+.checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 10px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.checkbox-row input {
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
