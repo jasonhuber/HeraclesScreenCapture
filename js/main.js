@@ -198,6 +198,12 @@ function handleRuntimeMessage(message) {
     return undefined;
   }
 
+  if (message?.type === "heracles-folder-picked") {
+    void refreshFolderStatus();
+    setStatus(`Export folder ready: ${message.name || "selected folder"}.`, "success");
+    return undefined;
+  }
+
   if (message?.type !== "shortcut-command") {
     return undefined;
   }

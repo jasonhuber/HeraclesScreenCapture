@@ -96,26 +96,30 @@ export async function ensureFolderPermission(handle, writeAccess, promptUser = t
 }
 
 export async function chooseExportFolder() {
-  if (typeof window.showDirectoryPicker !== "function") {
-    setStatus("Folder picker is unavailable in this browser context. Exports will use Downloads instead.", "warn");
-    return;
-  }
-
-  try {
-    const handle = await window.showDirectoryPicker({ mode: "readwrite" });
-    await storeHandle(handle);
-    await chrome.storage.local.set({ exportFolderName: handle.name });
-    await refreshFolderStatus();
-    setStatus(`Export folder ready: ${handle.name}`, "success");
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      setStatus("Folder selection cancelled.", "warn");
+  if (typeof window.showDirectoryPicker === "function") {
+    try {
+      const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+      await storeHandle(handle);
+      await chrome.storage.local.set({ exportFolderName: handle.name });
+      await refreshFolderStatus();
+      setStatus(`Export folder ready: ${handle.name}`, "success");
       return;
-    }
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        setStatus("Folder selection cancelled.", "warn");
+        return;
+      }
 
-    console.error("Unable to select export folder.", error);
-    setStatus("Unable to open the folder picker. Downloads fallback is still available.", "warn");
+      // Chrome blocks the system folder picker inside side panel documents, so open it in a real tab instead.
+      console.warn("Side panel folder picker unavailable; opening the picker tab.", error);
+    }
   }
+
+  await chrome.tabs.create({
+    url: chrome.runtime.getURL("folder-picker.html")
+  });
+
+  setStatus("Pick the export folder in the tab that just opened.");
 }
 
 export async function clearStoredFolder() {
@@ -142,7 +146,8 @@ export async function refreshFolderStatus() {
   if (!granted) {
     elements.folderStatusBadge.textContent = "Needs access";
     elements.folderStatusBadge.className = "badge badge-muted";
-    elements.folderStatusText.textContent = `${folderName} is remembered, but Chrome will ask again before writing.`;
+    elements.folderStatusText.textContent =
+      `"${folderName}" is remembered, but Chrome needs access re-granted. Click Select Export Folder to re-allow it.`;
     return;
   }
 

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Export Folder — Heracles Capture</title>
+    <link rel="stylesheet" href="sidepanel.css">
+    <style>
+      .picker-wrap {
+        max-width: 520px;
+        margin: 48px auto;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="panel picker-wrap">
+      <section class="card">
+        <div class="section-heading">
+          <h2>Choose your export folder</h2>
+        </div>
+
+        <p class="subtle">
+          Chrome does not allow the system folder picker to open inside the side panel, so it opens here instead.
+          Pick the folder once and the extension writes runs, screenshots, and packages straight into it.
+        </p>
+
+        <div id="regrantSection" class="hidden">
+          <p id="regrantText" class="small subtle"></p>
+          <div class="button-row">
+            <button id="regrantButton" class="button button-primary" type="button">
+              Re-allow Access
+            </button>
+          </div>
+        </div>
+
+        <div class="button-row">
+          <button id="pickButton" class="button button-primary" type="button">
+            Choose Folder
+          </button>
+        </div>
+
+        <p id="pickerStatus" class="small subtle"></p>
+      </section>
+    </main>
+
+    <script type="module" src="js/folder-picker.js"></script>
+  </body>
+</html>

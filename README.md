@@ -82,7 +82,10 @@ Each capture becomes a step you can manage inside the side panel:
 Chrome extensions should not have unrestricted access to the full local filesystem. The practical options are:
 
 1. Preferred: use the File System Access API.
-   The user picks an export folder from the side panel, and the extension writes files into that folder.
+   The user picks an export folder once, and the extension writes files into that folder. Chrome does not allow
+   the system folder picker to open inside side panel documents, so **Select Export Folder** opens a small
+   extension tab (`folder-picker.html`) where the picker works; the chosen folder handle is shared back through
+   IndexedDB. The same tab handles re-granting access when Chrome forgets it between sessions.
 
 2. Fallback: use the Chrome Downloads API.
    The extension saves files into a subfolder under the browser's Downloads location.
