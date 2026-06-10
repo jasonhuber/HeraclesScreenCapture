@@ -6,6 +6,7 @@ This project is a Chrome extension for documenting a web application as LMS-read
 
 - Opens in a Chrome side panel so you can keep it visible while navigating your app.
 - Gives you one live narration box where you type the walkthrough yourself.
+- Voice dictation: speak your narration instead of typing, with spoken punctuation commands and live interim preview.
 - Captures the current step as a `.png` using visible-area, full-page, or region mode.
 - Auto-step capture mode: records a documented step on every click in the page (screenshot, numbered click marker, drafted instruction), Scribe-style.
 - Supports keyboard shortcuts for quick capture and capture-and-edit.
@@ -40,10 +41,17 @@ Or flip on **Auto-Step Capture** and just click through the task in the page —
 - Redactions are burned destructively into both the stored original and the exported image on save — redacted pixels do not survive anywhere. All other annotations remain editable.
 - Saving writes the flattened PNG back into the run and (for new captures) inserts the Markdown tag at your cursor in the side panel.
 
+## Voice dictation
+
+Click **Dictate** in the Live Narration card (or press `Ctrl+Shift+3` / `Cmd+Shift+3`) and speak — finalized phrases are inserted at your cursor with smart spacing and capitalization, and an interim line previews what's being recognized. Spoken commands: "period", "comma", "question mark", "exclamation mark", "colon", "semicolon", "new line", "new paragraph". Combine it with Auto-Step Capture and you can narrate a walkthrough completely hands-free while the screenshots collect themselves.
+
+Engine details: dictation uses Chrome's built-in Web Speech API (audio is processed by Google's speech service — keep that in mind for sensitive environments). The first start opens a one-time microphone permission page. Chrome historically blocks the Speech API in some extension contexts, so if the side panel engine fails, the extension automatically falls back to running recognition inside the active page (Chrome may then ask for mic permission per site); the working engine is remembered.
+
 ## Keyboard shortcuts
 
 - `Cmd+Shift+1` on macOS or `Ctrl+Shift+1` on Windows/Linux captures with the current mode and inserts the image.
 - `Cmd+Shift+2` on macOS or `Ctrl+Shift+2` on Windows/Linux captures with the current mode and opens the editor.
+- `Cmd+Shift+3` on macOS or `Ctrl+Shift+3` on Windows/Linux starts or stops voice dictation.
 
 Shortcuts work even when the side panel is closed — the command is queued, the panel opens, and the capture runs.
 
@@ -88,7 +96,8 @@ This extension implements options 1 and 2.
 
 - `manifest.json` — MV3, side panel, commands, icons.
 - `service-worker.js` — side-panel behavior, capture relay, shortcut handling (with a `storage.session` handoff so shortcuts survive the panel not being open yet).
-- `sidepanel.html` / `sidepanel.css` / `js/` — the side panel as ES modules: `main.js` (wiring), `state.js`, `constants.js`, `db.js` (IndexedDB), `capture.js` (visible/region/full-page with rate-limit throttling, lazy-load priming, and sticky-header hiding), `page-scripts.js` (self-contained injected functions), `autocapture.js`, `editor-launch.js` (editor-tab lifecycle), `steps-ui.js`, `export.js`, `export-formats.js` (SCORM + single-file HTML), `markdown.js`, `zip.js`, `image-utils.js`, `ui.js`.
+- `sidepanel.html` / `sidepanel.css` / `js/` — the side panel as ES modules: `main.js` (wiring), `state.js`, `constants.js`, `db.js` (IndexedDB), `capture.js` (visible/region/full-page with rate-limit throttling, lazy-load priming, and sticky-header hiding), `page-scripts.js` (self-contained injected functions), `autocapture.js`, `dictation.js` (voice input, panel engine with in-page fallback), `editor-launch.js` (editor-tab lifecycle), `steps-ui.js`, `export.js`, `export-formats.js` (SCORM + single-file HTML), `markdown.js`, `zip.js`, `image-utils.js`, `ui.js`.
+- `permission.html` / `js/permission.js` — one-time microphone grant page for dictation.
 - `editor.html` / `editor.css` / `editor.js` — the full-tab annotation editor. Open it as `editor.html?dev=1` outside the extension for standalone testing with any local image.
 - Storage: capture metadata in `chrome.storage.local`; image blobs (flattened asset + un-annotated original) and annotation objects in IndexedDB, so steps remain re-editable across sessions.
 

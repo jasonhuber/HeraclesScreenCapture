@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Microphone Access — Heracles Capture</title>
+    <link rel="stylesheet" href="sidepanel.css">
+    <style>
+      .permission-wrap {
+        max-width: 520px;
+        margin: 48px auto;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="panel permission-wrap">
+      <section class="card">
+        <div class="section-heading">
+          <h2>Microphone access for dictation</h2>
+        </div>
+
+        <p class="subtle">
+          Heracles needs one-time permission to use your microphone so you can dictate narration in the side panel.
+          Chrome remembers this for the extension, so you only do it once. Nothing is recorded until you start
+          dictation yourself.
+        </p>
+
+        <div class="button-row">
+          <button id="grantButton" class="button button-primary" type="button">
+            Allow Microphone
+          </button>
+        </div>
+
+        <p id="permissionStatus" class="small subtle"></p>
+      </section>
+    </main>
+
+    <script src="js/permission.js"></script>
+  </body>
+</html>

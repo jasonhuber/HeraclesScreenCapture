@@ -408,3 +408,28 @@ textarea {
   background: #fef3c7;
   color: #b45309;
 }
+
+/* --- Dictation --- */
+.button-recording {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #ffffff;
+  animation: heracles-recording-pulse 1.6s ease-in-out infinite;
+}
+
+.button-recording:hover {
+  background: #991b1b;
+  border-color: #991b1b;
+}
+
+@keyframes heracles-recording-pulse {
+  50% {
+    opacity: 0.78;
+  }
+}
+
+.dictation-interim {
+  margin: 0 0 8px;
+  font-style: italic;
+  min-height: 1.3em;
+}

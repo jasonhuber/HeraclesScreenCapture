@@ -40,7 +40,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
-  if (!["quick-capture", "capture-and-edit"].includes(command)) {
+  if (!["quick-capture", "capture-and-edit", "toggle-dictation"].includes(command)) {
     return;
   }
 

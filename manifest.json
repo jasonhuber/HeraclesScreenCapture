@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Heracles Screen Capture Coach",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Capture training screenshots, generate instructional markdown, and export both into a local folder.",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -50,6 +50,13 @@
         "mac": "Command+Shift+2"
       },
       "description": "Capture using the current capture mode and open the editor"
+    },
+    "toggle-dictation": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+3",
+        "mac": "Command+Shift+3"
+      },
+      "description": "Start or stop voice dictation into the narration"
     }
   }
 }

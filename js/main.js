@@ -24,6 +24,7 @@ import {
   prepareCaptureSession
 } from "./capture.js";
 import { initAutoCapture } from "./autocapture.js";
+import { initDictation, toggleDictation } from "./dictation.js";
 import {
   chooseExportFolder,
   clearStoredFolder,
@@ -73,6 +74,7 @@ async function initialize() {
   renderPreview();
   refreshActionAvailability();
   initAutoCapture();
+  initDictation();
 
   await processPendingEditorWork();
   await runPendingShortcutCommand();
@@ -217,6 +219,11 @@ function handleRuntimeMessage(message) {
 }
 
 function executeShortcutCommand(command) {
+  if (command === "toggle-dictation") {
+    void toggleDictation();
+    return;
+  }
+
   if (state.busy) {
     setStatus("Wait for the current action to finish before triggering another shortcut.", "warn");
     return;
@@ -312,8 +319,10 @@ function renderShortcutHint() {
   const isMac = /mac/i.test(navigator.platform);
   const quickCapture = isMac ? "Command+Shift+1" : "Ctrl+Shift+1";
   const captureAndEdit = isMac ? "Command+Shift+2" : "Ctrl+Shift+2";
+  const dictation = isMac ? "Command+Shift+3" : "Ctrl+Shift+3";
   elements.shortcutHint.textContent =
-    `Shortcuts: ${quickCapture} captures with the current mode, ${captureAndEdit} captures and opens the editor.`;
+    `Shortcuts: ${quickCapture} captures with the current mode, ${captureAndEdit} captures and opens the editor, ` +
+    `${dictation} toggles dictation.`;
 }
 
 async function refreshActiveTabHint() {
