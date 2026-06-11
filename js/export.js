@@ -305,7 +305,8 @@ function buildPackageManifest(runFolderSlug) {
       pageTitle: capture.pageTitle,
       captureMode: capture.captureMode,
       capturedAt: capture.capturedAt,
-      edited: capture.edited
+      edited: capture.edited,
+      clickContext: capture.clickContext || null
     }))
   };
 }

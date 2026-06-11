@@ -2,6 +2,7 @@ import { CAPTURE_MODE_LABELS, DEFAULT_SETTINGS, normalizeCaptureMode } from "./c
 import { elements, state, setLastNarrationSelection } from "./state.js";
 import { deleteCaptureData, getCaptureAsset } from "./db.js";
 import {
+  buildAutoInstruction,
   buildCaptureFileName,
   buildCaptureMarkdown,
   deriveSuggestedTitle,
@@ -551,6 +552,12 @@ export async function draftNarrationFromSteps() {
 }
 
 function buildStepNarration(capture, index) {
+  const clickContext = capture.clickContext;
+
+  if (clickContext && (clickContext.label || clickContext.container)) {
+    return buildAutoInstruction(clickContext.label, clickContext.role, clickContext.container);
+  }
+
   const contextLabel = normalizeInlineText(
     capture.pageContext?.mainHeading || capture.pageTitle || capture.title || `step ${index + 1}`
   );

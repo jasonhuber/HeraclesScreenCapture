@@ -8,7 +8,7 @@ import {
 import { storeCaptureAnnotations, storeCaptureAsset, storeCaptureOriginal } from "./db.js";
 import { prepareDictatedChunk, startRoutedDictation, stopRoutedDictation } from "./dictation.js";
 import { canvasToBlob, clampNumber, dataUrlToBlob, loadImage } from "./image-utils.js";
-import { buildCaptureFileName, buildCaptureMarkdown, normalizeInlineText } from "./markdown.js";
+import { buildAutoInstruction, buildCaptureFileName, buildCaptureMarkdown, normalizeInlineText } from "./markdown.js";
 import {
   ensureRunFolderSlug,
   getCaptureById,
@@ -235,7 +235,7 @@ async function processAutoClick(payload) {
   const rawDataUrl = await captureVisibleTab(tab.windowId);
   const image = await loadImage(rawDataUrl);
   const stepNumber = state.captures.length + 1;
-  const marker = drawClickBadge(image, payload, stepNumber);
+  const marker = drawClickMarkers(image, payload, stepNumber);
 
   const pageContext = {
     title: tab.title || "",
@@ -266,6 +266,12 @@ async function processAutoClick(payload) {
   captureMeta.suggestedTitle = captureMeta.title;
   captureMeta.fileName = buildCaptureFileName(captureMeta.title, captureMeta.id);
   captureMeta.relativeImagePath = `screenshots/${captureMeta.fileName}`;
+  captureMeta.clickContext = {
+    label,
+    role: roleLabel,
+    container: payload.container || null,
+    rect: marker.elementRect || null
+  };
 
   const flattenedBlob = await canvasToBlob(marker.canvas);
   const unmarkedBlob = await dataUrlToBlob(rawDataUrl);
@@ -275,7 +281,7 @@ async function processAutoClick(payload) {
     version: 1,
     baseWidth: marker.canvas.width,
     baseHeight: marker.canvas.height,
-    shapes: [marker.badgeShape]
+    shapes: marker.shapes
   });
   await storeCaptureAsset(captureMeta.id, flattenedBlob);
 
@@ -283,7 +289,10 @@ async function processAutoClick(payload) {
   syncCaptureOrdering({ updateNarration: false });
 
   const currentCapture = getCaptureById(captureMeta.id) || captureMeta;
-  const narrationParts = appendStepNarration(currentCapture, label);
+  const narrationParts = appendStepNarration(
+    currentCapture,
+    buildAutoInstruction(label, roleLabel, payload.container)
+  );
   recordState.currentStep = {
     paragraph: "",
     canned: narrationParts.instruction,
@@ -301,7 +310,7 @@ async function processAutoClick(payload) {
   setStatus(`Auto-captured step ${currentCapture.indexLabel} (${currentCapture.title}).`, "success");
 }
 
-function drawClickBadge(image, payload, stepNumber) {
+function drawClickMarkers(image, payload, stepNumber) {
   const canvas = document.createElement("canvas");
   canvas.width = image.naturalWidth || image.width;
   canvas.height = image.naturalHeight || image.height;
@@ -311,6 +320,33 @@ function drawClickBadge(image, payload, stepNumber) {
 
   const scaleX = canvas.width / Math.max(1, Number(payload.viewportWidth) || canvas.width);
   const scaleY = canvas.height / Math.max(1, Number(payload.viewportHeight) || canvas.height);
+  const shapes = [];
+
+  const elementRect = scaleElementRect(payload.rect, scaleX, scaleY, canvas);
+
+  if (elementRect) {
+    const strokeWidth = Math.max(3, Math.round(canvas.width * 0.003));
+
+    context.save();
+    context.strokeStyle = BADGE_COLOR;
+    context.lineWidth = strokeWidth;
+    context.lineJoin = "round";
+    roundedRectPath(context, elementRect.x, elementRect.y, elementRect.width, elementRect.height, 6);
+    context.stroke();
+    context.restore();
+
+    shapes.push({
+      id: `box-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      type: "box",
+      x: elementRect.x,
+      y: elementRect.y,
+      width: elementRect.width,
+      height: elementRect.height,
+      color: BADGE_COLOR,
+      strokeWidth
+    });
+  }
+
   const radius = clampNumber(Math.round(canvas.width * 0.025), 18, 48);
   const fontSize = Math.round(radius / 0.85);
   const centerX = Math.round(clampNumber((Number(payload.x) || 0) * scaleX, radius, Math.max(radius, canvas.width - radius)));
@@ -330,25 +366,57 @@ function drawClickBadge(image, payload, stepNumber) {
   context.textBaseline = "middle";
   context.fillText(String(stepNumber), centerX, centerY + fontSize * 0.05);
 
-  return {
-    canvas,
-    badgeShape: {
-      id: `badge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-      type: "badge",
-      x: centerX,
-      y: centerY,
-      width: radius * 2,
-      height: radius * 2,
-      color: BADGE_COLOR,
-      number: stepNumber,
-      fontSize
-    }
-  };
+  shapes.push({
+    id: `badge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    type: "badge",
+    x: centerX,
+    y: centerY,
+    width: radius * 2,
+    height: radius * 2,
+    color: BADGE_COLOR,
+    number: stepNumber,
+    fontSize
+  });
+
+  return { canvas, shapes, elementRect };
 }
 
-function appendStepNarration(capture, label) {
+function scaleElementRect(rect, scaleX, scaleY, canvas) {
+  const width = Number(rect?.width) || 0;
+  const height = Number(rect?.height) || 0;
+
+  if (width < 6 || height < 6) {
+    return null;
+  }
+
+  const paddedX = (Number(rect.x) || 0) - 4;
+  const paddedY = (Number(rect.y) || 0) - 4;
+  const x = clampNumber(Math.round(paddedX * scaleX), 0, canvas.width - 1);
+  const y = clampNumber(Math.round(paddedY * scaleY), 0, canvas.height - 1);
+  const right = clampNumber(Math.round((paddedX + width + 8) * scaleX), 0, canvas.width);
+  const bottom = clampNumber(Math.round((paddedY + height + 8) * scaleY), 0, canvas.height);
+
+  if (right - x < 8 || bottom - y < 8) {
+    return null;
+  }
+
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+function roundedRectPath(context, x, y, width, height, radius) {
+  const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.arcTo(x + width, y, x + width, y + height, r);
+  context.arcTo(x + width, y + height, x, y + height, r);
+  context.arcTo(x, y + height, x, y, r);
+  context.arcTo(x, y, x + width, y, r);
+  context.closePath();
+}
+
+function appendStepNarration(capture, instruction) {
   const heading = `## Step ${capture.captureNumber}: ${capture.title}`;
-  const instruction = label ? `Click **${label}**.` : "Click the highlighted area to continue.";
   const image = buildCaptureMarkdown(capture);
   const block = [heading, instruction, image].join("\n\n");
   const currentValue = elements.narrationInput.value;
@@ -482,7 +550,7 @@ function autoCaptureStartInPage() {
         );
 
         if (text) {
-          return { label: text, role: node.tagName.toLowerCase() };
+          return { label: text, role: node.tagName.toLowerCase(), element: node };
         }
       }
 
@@ -495,7 +563,75 @@ function autoCaptureStartInPage() {
       : "";
     const tagName = fallbackElement && fallbackElement.tagName ? fallbackElement.tagName.toLowerCase() : "";
 
-    return { label: ownText || tagName, role: tagName };
+    return { label: ownText || tagName, role: tagName, element: fallbackElement };
+  };
+
+  const describeContainer = (start) => {
+    const normalize = (value) => String(value || "").replace(/\s+/g, " ").trim().slice(0, 60);
+    const containerSelector =
+      "dialog, [role='dialog'], [role='alertdialog'], nav, [role='navigation'], form, table, fieldset, header, footer, aside, section, article, main";
+
+    const kindFor = (element) => {
+      const role = (element.getAttribute("role") || "").toLowerCase();
+      const tag = element.tagName.toLowerCase();
+
+      if (role === "dialog" || role === "alertdialog" || tag === "dialog") return "dialog";
+      if (role === "navigation" || tag === "nav") return "navigation";
+      if (tag === "form") return "form";
+      if (tag === "table") return "table";
+      if (tag === "fieldset") return "form section";
+      if (tag === "header") return "page header";
+      if (tag === "footer") return "page footer";
+      if (tag === "aside") return "sidebar";
+      if (tag === "main") return "page";
+      return "section";
+    };
+
+    const labelFor = (element) => {
+      const direct = normalize(element.getAttribute("aria-label"));
+
+      if (direct) {
+        return direct;
+      }
+
+      const labelledBy = element.getAttribute("aria-labelledby");
+
+      if (labelledBy) {
+        const resolved = normalize(
+          labelledBy
+            .split(/\s+/)
+            .map((id) => {
+              const labelElement = document.getElementById(id);
+              return labelElement ? labelElement.textContent : "";
+            })
+            .join(" ")
+        );
+
+        if (resolved) {
+          return resolved;
+        }
+      }
+
+      const named = element.querySelector("legend, caption, h1, h2, h3, h4");
+      return named ? normalize(named.textContent) : "";
+    };
+
+    let node = start instanceof Element ? start.parentElement : null;
+
+    while (node && node !== document.body) {
+      if (typeof node.matches === "function" && node.matches(containerSelector)) {
+        const kind = kindFor(node);
+        const label = labelFor(node);
+
+        if (label || ["dialog", "navigation", "form", "table", "page header", "page footer", "sidebar"].includes(kind)) {
+          return { kind, label };
+        }
+      }
+
+      node = node.parentElement;
+    }
+
+    return null;
   };
 
   const deactivate = (handler) => {
@@ -510,13 +646,31 @@ function autoCaptureStartInPage() {
     }
 
     const control = findControl(event.target);
+    const anchorElement = control.element || (event.target instanceof Element ? event.target : null);
+    let elementRect = null;
+
+    if (anchorElement && typeof anchorElement.getBoundingClientRect === "function") {
+      const bounds = anchorElement.getBoundingClientRect();
+
+      if (
+        bounds.width >= 6 &&
+        bounds.height >= 6 &&
+        bounds.width < window.innerWidth * 0.9 &&
+        bounds.height < window.innerHeight * 0.6
+      ) {
+        elementRect = { x: bounds.left, y: bounds.top, width: bounds.width, height: bounds.height };
+      }
+    }
+
     const payload = {
       x: event.clientX,
       y: event.clientY,
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
       label: control.label,
-      elementRole: control.role
+      elementRole: control.role,
+      rect: elementRect,
+      container: describeContainer(anchorElement)
     };
 
     try {

@@ -346,6 +346,7 @@ function normalizeStoredCaptures(captures, runFolderSlug) {
       pageTitle: capture?.pageTitle || title,
       pageContext,
       sensitiveRects: Array.isArray(capture?.sensitiveRects) ? capture.sensitiveRects.map(normalizeRect).filter(Boolean) : [],
+      clickContext: capture?.clickContext || null,
       captureMode: normalizeCaptureMode(capture?.captureMode),
       capturedAt: capture?.capturedAt || new Date().toISOString(),
       edited: Boolean(capture?.edited),

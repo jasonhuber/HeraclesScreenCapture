@@ -8,7 +8,7 @@ This project is a Chrome extension for documenting a web application as LMS-read
 - Gives you one live narration box where you type the walkthrough yourself.
 - Voice dictation: speak your narration instead of typing, with spoken punctuation commands and live interim preview.
 - Captures the current step as a `.png` using visible-area, full-page, or region mode.
-- Auto-step capture mode: records a documented step on every click in the page (screenshot, numbered click marker, drafted instruction), Scribe-style — optionally with simultaneous voice narration that lands under each step automatically.
+- Auto-step capture mode: records a documented step on every click in the page, Scribe-style — screenshot, a highlight box drawn around the exact element you clicked, a numbered click badge, and a container-aware instruction like "Click **Save** in the **Edit Policy** dialog" — optionally with simultaneous voice narration that lands under each step automatically. The element's label, bounds, and enclosing dialog/nav/form are stored with the step, and the markers are editable annotations in the image editor.
 - Supports keyboard shortcuts for quick capture and capture-and-edit.
 - Inserts a Markdown image tag at the current cursor position in your narration.
 - Keeps captures cached in the extension while you work — nothing is written to disk on each click; the run folder (Markdown + `screenshots/`) is written in one go when you save or export.

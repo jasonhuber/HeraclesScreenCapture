@@ -161,6 +161,28 @@ export function buildCaptureMarkdown(captureMeta) {
   return `![${altText}](${captureMeta.relativeImagePath})`;
 }
 
+export function buildAutoInstruction(label, roleLabel, container) {
+  const cleanLabel = normalizeInlineText(label || "");
+  const cleanRole = normalizeInlineText(roleLabel || "");
+  const base = cleanLabel
+    ? `Click **${cleanLabel}**`
+    : cleanRole
+      ? `Click the ${cleanRole}`
+      : "Click the highlighted area";
+  const containerLabel = normalizeInlineText(container?.label || "");
+  const containerKind = normalizeInlineText(container?.kind || "");
+
+  if (containerLabel) {
+    return `${base} in the **${containerLabel}** ${containerKind || "area"}.`;
+  }
+
+  if (containerKind && containerKind !== "section" && containerKind !== "page") {
+    return `${base} in the ${containerKind}.`;
+  }
+
+  return `${base}.`;
+}
+
 export function replaceCaptureReferenceInNarration(markdown, relativeImagePath, replacement) {
   const pathPattern = escapeRegExp(relativeImagePath);
   const imageRegex = new RegExp(`!\\[(?:\\\\.|[^\\]\\\\])*\\]\\(${pathPattern}\\)`, "g");
