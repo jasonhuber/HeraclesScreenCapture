@@ -32,6 +32,14 @@ const DEFAULT_FONT_SIZE = 18;
 const DEFAULT_HIGHLIGHT_COLOR = "#fde047";
 const REDACTION_COLOR = "#111111";
 const HIGHLIGHT_ALPHA = 0.45;
+const DEFAULT_PIXELATE_BLOCK = 12;
+const MIN_PIXELATE_BLOCK = 4;
+const MAX_PIXELATE_BLOCK = 60;
+const DEFAULT_STAMP_COLOR = "#16a34a";
+const DEFAULT_STAMP_GLYPH = "check";
+const DEFAULT_STAMP_SIZE = 56;
+const STAMP_GLYPHS = ["check", "cross", "star", "dot", "question", "exclaim", "arrow-right"];
+const DEFAULT_TEXT_BACKING = "light";
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 8;
 const MAX_HISTORY = 60;
@@ -40,10 +48,13 @@ const TEXT_FONT_FAMILY = "\"Avenir Next\", \"Segoe UI\", sans-serif";
 const SWATCH_COLORS = ["#d97706", "#dc2626", "#2563eb", "#0f766e", "#7c3aed", "#111111", "#ffffff"];
 const SUGGESTION_KIND_COLORS = ["#dc2626", "#7c3aed", "#2563eb", "#b45309", "#0f766e", "#be185d"];
 
-const DRAG_RECT_TOOLS = ["box", "ellipse", "highlight", "redact"];
+const DRAG_RECT_TOOLS = ["box", "ellipse", "highlight", "redact", "pixelate"];
 const STROKE_SHAPE_TYPES = ["arrow", "line", "box", "ellipse", "pen", "callout"];
-const COLOR_SHAPE_TYPES = ["arrow", "line", "box", "ellipse", "pen", "highlight", "text", "callout", "badge"];
+const COLOR_SHAPE_TYPES = ["arrow", "line", "box", "ellipse", "pen", "highlight", "text", "callout", "badge", "stamp"];
 const FONT_SHAPE_TYPES = ["text", "callout", "badge"];
+const PIXELATE_SHAPE_TYPES = ["pixelate"];
+const GLYPH_SHAPE_TYPES = ["stamp"];
+const BACKING_SHAPE_TYPES = ["text", "callout"];
 
 const TOOL_SHORTCUTS = {
   v: "select",
@@ -57,6 +68,8 @@ const TOOL_SHORTCUTS = {
   c: "callout",
   n: "badge",
   d: "redact",
+  z: "pixelate",
+  m: "stamp",
   x: "crop"
 };
 
@@ -73,7 +86,9 @@ const TOOL_HINTS = {
   text: "Click where the text should start, then type. Blur or Escape commits.",
   callout: "Drag from the anchor point to where the note box should sit, then type.",
   badge: "Click to drop a numbered badge. Double-click a badge to edit its number.",
-  redact: "Drag a solid block over anything sensitive. Redactions are burned in permanently on save."
+  redact: "Drag a solid block over anything sensitive. Redactions are burned in permanently on save.",
+  pixelate: "Drag over anything to blur it into a mosaic. Pixelation is burned in permanently on save.",
+  stamp: "Click to drop a stamp. Pick a glyph in the bar above; drag handles to resize."
 };
 
 const elements = {};
@@ -94,6 +109,10 @@ const state = {
   highlightColor: DEFAULT_HIGHLIGHT_COLOR,
   strokeWidth: DEFAULT_STROKE,
   fontSize: DEFAULT_FONT_SIZE,
+  pixelateBlock: DEFAULT_PIXELATE_BLOCK,
+  stampGlyph: DEFAULT_STAMP_GLYPH,
+  stampColor: DEFAULT_STAMP_COLOR,
+  textBacking: DEFAULT_TEXT_BACKING,
   zoom: 1,
   panX: 0,
   panY: 0,
@@ -117,6 +136,8 @@ const state = {
 };
 
 const measureContext = document.createElement("canvas").getContext("2d");
+const mosaicCanvas = document.createElement("canvas");
+const mosaicContext = mosaicCanvas.getContext("2d");
 let toastTimer = null;
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -126,6 +147,8 @@ document.addEventListener("DOMContentLoaded", () => {
 async function initialize() {
   cacheElements();
   buildSwatches();
+  buildGlyphPicker();
+  buildBackingButtons();
   bindUi();
   bindPointerEvents();
   bindKeyboard();
@@ -223,7 +246,8 @@ function cacheElements() {
     "app", "stepLabel", "undoButton", "redoButton", "zoomOutButton", "zoomInButton",
     "zoomLevelButton", "fitButton", "suggestionsButton", "cancelButton", "saveButton",
     "propsBar", "colorGroup", "swatches", "colorInput", "strokeGroup", "strokeInput",
-    "strokeValue", "fontGroup", "fontInput", "fontValue", "cropGroup", "applyCropButton",
+    "strokeValue", "fontGroup", "fontInput", "fontValue", "pixelateGroup", "pixelateInput",
+    "pixelateValue", "glyphGroup", "glyphButtons", "backingGroup", "cropGroup", "applyCropButton",
     "clearCropButton", "cropSizeLabel", "propHint", "toolbar", "workspace", "stage",
     "overlayLayer", "dropZone", "devFileInput", "suggestionsPopover", "suggestionsList",
     "applySuggestionsButton", "hideSuggestionsButton", "statusToast", "errorState",
@@ -252,6 +276,55 @@ function buildSwatches() {
       applyColor(color);
     });
     elements.swatches.appendChild(button);
+  });
+}
+
+const STAMP_GLYPH_LABELS = {
+  check: "Check",
+  cross: "Cross",
+  star: "Star",
+  dot: "Dot",
+  question: "Question",
+  exclaim: "Exclamation",
+  "arrow-right": "Pointer"
+};
+
+function buildGlyphPicker() {
+  STAMP_GLYPHS.forEach((glyph) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "glyph-button";
+    button.dataset.glyph = glyph;
+    button.title = STAMP_GLYPH_LABELS[glyph] || glyph;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 24;
+    canvas.height = 24;
+    const context = canvas.getContext("2d");
+    drawStampGlyph(context, glyph, 3, 3, 18, 18, "#2d261c", false);
+    button.appendChild(canvas);
+
+    button.addEventListener("click", () => applyStampGlyph(glyph));
+    elements.glyphButtons.appendChild(button);
+  });
+}
+
+function buildBackingButtons() {
+  const options = [
+    { value: "none", label: "None" },
+    { value: "light", label: "Light" },
+    { value: "dark", label: "Dark" }
+  ];
+
+  options.forEach((option) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "backing-button";
+    button.dataset.backing = option.value;
+    button.textContent = option.label;
+    button.title = `${option.label} text backing`;
+    button.addEventListener("click", () => applyTextBacking(option.value));
+    elements.backingGroup.appendChild(button);
   });
 }
 
@@ -301,6 +374,12 @@ function bindUi() {
     applyFontSize(Number(elements.fontInput.value));
   });
   elements.fontInput.addEventListener("change", () => endPropEdit());
+
+  elements.pixelateInput.addEventListener("input", () => {
+    beginPropEdit();
+    applyPixelateBlock(Number(elements.pixelateInput.value));
+  });
+  elements.pixelateInput.addEventListener("change", () => endPropEdit());
 
   elements.toolButtons.forEach((button) => {
     button.addEventListener("click", () => setTool(button.dataset.tool));
@@ -560,7 +639,7 @@ function rehydrateShape(raw) {
 
 function serializeShape(shape) {
   const out = { id: shape.id, type: shape.type };
-  const numericFields = ["x", "y", "width", "height", "strokeWidth", "fontSize", "number"];
+  const numericFields = ["x", "y", "width", "height", "strokeWidth", "fontSize", "number", "blockSize"];
 
   numericFields.forEach((field) => {
     if (typeof shape[field] === "number" && Number.isFinite(shape[field])) {
@@ -574,6 +653,14 @@ function serializeShape(shape) {
 
   if (typeof shape.text === "string") {
     out.text = shape.text;
+  }
+
+  if (typeof shape.glyph === "string") {
+    out.glyph = shape.glyph;
+  }
+
+  if (shape.backing === "light" || shape.backing === "dark" || shape.backing === "none") {
+    out.backing = shape.backing;
   }
 
   if (Array.isArray(shape.points)) {
@@ -895,6 +982,10 @@ function currentDefaultColor() {
     return state.highlightColor;
   }
 
+  if (state.tool === "stamp") {
+    return state.stampColor;
+  }
+
   return state.color;
 }
 
@@ -909,6 +1000,8 @@ function applyColor(color, fromCustomInput) {
     selected.color = color;
   } else if (state.tool === "highlight") {
     state.highlightColor = color;
+  } else if (state.tool === "stamp") {
+    state.stampColor = color;
   } else {
     state.color = color;
   }
@@ -945,6 +1038,64 @@ function applyFontSize(size) {
   scheduleRender();
 }
 
+function applyPixelateBlock(size) {
+  const value = clampNumber(Math.round(size), MIN_PIXELATE_BLOCK, MAX_PIXELATE_BLOCK);
+  const selected = getShapeById(state.selectedId);
+
+  if (selected && PIXELATE_SHAPE_TYPES.includes(selected.type)) {
+    selected.blockSize = value;
+  } else {
+    state.pixelateBlock = value;
+  }
+
+  updatePropsBar();
+  scheduleRender();
+}
+
+function applyStampGlyph(glyph) {
+  if (!STAMP_GLYPHS.includes(glyph)) {
+    return;
+  }
+
+  const selected = getShapeById(state.selectedId);
+
+  if (selected && selected.type === "stamp") {
+    if (selected.glyph !== glyph) {
+      pushHistory(false);
+      selected.glyph = glyph;
+    }
+  }
+
+  state.stampGlyph = glyph;
+  updatePropsBar();
+  scheduleRender();
+}
+
+function applyTextBacking(backing) {
+  const value = backing === "light" || backing === "dark" ? backing : "none";
+  const selected = getShapeById(state.selectedId);
+
+  if (selected && BACKING_SHAPE_TYPES.includes(selected.type)) {
+    if (textBackingOf(selected) !== value) {
+      pushHistory(false);
+      selected.backing = value;
+    }
+  } else {
+    state.textBacking = value;
+  }
+
+  updatePropsBar();
+  scheduleRender();
+}
+
+function textBackingOf(shape) {
+  if (shape.backing === "light" || shape.backing === "dark") {
+    return shape.backing;
+  }
+
+  return "none";
+}
+
 function beginPropEdit() {
   if (!state.propEditBefore && getShapeById(state.selectedId)) {
     state.propEditBefore = makeSnapshot(false);
@@ -964,16 +1115,25 @@ function updatePropsBar() {
   const showColor = COLOR_SHAPE_TYPES.includes(colorTarget);
   const showStroke = STROKE_SHAPE_TYPES.includes(colorTarget);
   const showFont = FONT_SHAPE_TYPES.includes(colorTarget);
+  const showPixelate = PIXELATE_SHAPE_TYPES.includes(colorTarget);
+  const showGlyph = GLYPH_SHAPE_TYPES.includes(colorTarget);
+  const showBacking = BACKING_SHAPE_TYPES.includes(colorTarget);
   const showCrop = state.tool === "crop" && Boolean(state.cropRect);
 
   elements.colorGroup.hidden = !showColor;
   elements.strokeGroup.hidden = !showStroke;
   elements.fontGroup.hidden = !showFont;
+  elements.pixelateGroup.hidden = !showPixelate;
+  elements.glyphGroup.hidden = !showGlyph;
+  elements.backingGroup.hidden = !showBacking;
   elements.cropGroup.hidden = !showCrop;
 
   const activeColor = selected && selected.color ? selected.color : currentDefaultColor();
   const activeStroke = selected && typeof selected.strokeWidth === "number" ? selected.strokeWidth : state.strokeWidth;
   const activeFont = selected && typeof selected.fontSize === "number" ? selected.fontSize : state.fontSize;
+  const activeBlock = selected && typeof selected.blockSize === "number" ? selected.blockSize : state.pixelateBlock;
+  const activeGlyph = selected && selected.type === "stamp" && selected.glyph ? selected.glyph : state.stampGlyph;
+  const activeBacking = selected && BACKING_SHAPE_TYPES.includes(selected.type) ? textBackingOf(selected) : state.textBacking;
 
   if (showColor) {
     Array.from(elements.swatches.children).forEach((swatch) => {
@@ -993,6 +1153,25 @@ function updatePropsBar() {
   if (showFont) {
     elements.fontInput.value = String(activeFont);
     elements.fontValue.textContent = String(activeFont);
+  }
+
+  if (showPixelate) {
+    elements.pixelateInput.value = String(activeBlock);
+    elements.pixelateValue.textContent = String(activeBlock);
+  }
+
+  if (showGlyph) {
+    Array.from(elements.glyphButtons.children).forEach((button) => {
+      button.classList.toggle("active", button.dataset.glyph === activeGlyph);
+    });
+  }
+
+  if (showBacking) {
+    Array.from(elements.backingGroup.children).forEach((button) => {
+      if (button.dataset.backing) {
+        button.classList.toggle("active", button.dataset.backing === activeBacking);
+      }
+    });
   }
 
   if (showCrop && state.cropRect) {
@@ -1141,12 +1320,16 @@ function onPointerDown(event) {
           color: state.color,
           strokeWidth: Math.max(2, state.strokeWidth),
           fontSize: state.fontSize,
+          backing: state.textBacking,
           text: ""
         }
       };
       break;
     case "badge":
       placeBadge(point);
+      break;
+    case "stamp":
+      placeStamp(point);
       break;
     case "arrow":
     case "line":
@@ -1161,6 +1344,21 @@ function onPointerDown(event) {
           height: 0,
           color: state.color,
           strokeWidth: state.strokeWidth
+        }
+      };
+      break;
+    case "pixelate":
+      state.gesture = {
+        type: "draw",
+        start: point,
+        shape: {
+          id: makeShapeId(),
+          type: "pixelate",
+          x: point.x,
+          y: point.y,
+          width: 0,
+          height: 0,
+          blockSize: state.pixelateBlock
         }
       };
       break;
@@ -1253,6 +1451,24 @@ function placeBadge(point) {
   updatePropsBar();
 }
 
+function placeStamp(point) {
+  pushHistory(false);
+  const size = DEFAULT_STAMP_SIZE;
+  const shape = {
+    id: makeShapeId(),
+    type: "stamp",
+    x: point.x - size / 2,
+    y: point.y - size / 2,
+    width: size,
+    height: size,
+    glyph: STAMP_GLYPHS.includes(state.stampGlyph) ? state.stampGlyph : DEFAULT_STAMP_GLYPH,
+    color: state.stampColor
+  };
+  state.shapes.push(shape);
+  state.selectedId = shape.id;
+  updatePropsBar();
+}
+
 function startTextShape(point) {
   const shape = {
     id: makeShapeId(),
@@ -1261,6 +1477,7 @@ function startTextShape(point) {
     y: point.y,
     color: state.color,
     fontSize: state.fontSize,
+    backing: state.textBacking,
     text: ""
   };
   openTextEditor(shape, true);
@@ -1626,6 +1843,8 @@ function shapeContainsPoint(shape, point, tolerance) {
     }
     case "highlight":
     case "redact":
+    case "pixelate":
+    case "stamp":
       return pointInRect(point, shapeBounds(shape));
     case "text":
       return pointInRect(point, expandRect(shapeBounds(shape), 3));
@@ -2355,6 +2574,12 @@ function drawShape(ctx, shape) {
     case "redact":
       drawRedact(ctx, shape);
       break;
+    case "pixelate":
+      drawPixelate(ctx, shape);
+      break;
+    case "stamp":
+      drawStamp(ctx, shape);
+      break;
     default:
       break;
   }
@@ -2455,21 +2680,65 @@ function drawHighlight(ctx, shape) {
   ctx.restore();
 }
 
+function backingFill(backing) {
+  if (backing === "dark") {
+    return "rgba(17, 17, 17, 0.72)";
+  }
+
+  return "rgba(255, 255, 255, 0.82)";
+}
+
+function drawTextBackingPill(ctx, shape, backing) {
+  const fontSize = shape.fontSize || DEFAULT_FONT_SIZE;
+  const size = measureTextBlock(shape.text, fontSize);
+  const padX = Math.max(5, fontSize * 0.35);
+  const padY = Math.max(3, fontSize * 0.2);
+  const radius = Math.max(4, fontSize * 0.3);
+
+  ctx.save();
+  ctx.fillStyle = backingFill(backing);
+  roundedRectPath(
+    ctx,
+    shape.x - padX,
+    shape.y - padY,
+    size.width + padX * 2,
+    size.height + padY * 2,
+    radius
+  );
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawText(ctx, shape) {
   const fontSize = shape.fontSize || DEFAULT_FONT_SIZE;
   const lines = String(shape.text || "").split("\n");
+  const backing = textBackingOf(shape);
+
+  if (backing !== "none") {
+    drawTextBackingPill(ctx, shape, backing);
+  }
 
   ctx.save();
   ctx.font = `600 ${fontSize}px ${TEXT_FONT_FAMILY}`;
   ctx.textBaseline = "top";
   ctx.lineJoin = "round";
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.88)";
-  ctx.lineWidth = Math.max(2, fontSize / 6);
+
+  // The pill already guarantees legibility; only fall back to the white halo
+  // when there is no backing so previously-saved annotations look unchanged.
+  if (backing === "none") {
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.88)";
+    ctx.lineWidth = Math.max(2, fontSize / 6);
+  }
+
   ctx.fillStyle = shape.color || DEFAULT_COLOR;
 
   lines.forEach((line, index) => {
     const y = shape.y + index * fontSize * 1.25;
-    ctx.strokeText(line, shape.x, y);
+
+    if (backing === "none") {
+      ctx.strokeText(line, shape.x, y);
+    }
+
     ctx.fillText(line, shape.x, y);
   });
 
@@ -2492,6 +2761,7 @@ function drawCallout(ctx, shape) {
   const stroke = Math.max(2, shape.strokeWidth || DEFAULT_STROKE);
   const fontSize = shape.fontSize || DEFAULT_FONT_SIZE;
   const color = shape.color || DEFAULT_COLOR;
+  const dark = textBackingOf(shape) === "dark";
 
   ctx.save();
 
@@ -2513,7 +2783,7 @@ function drawCallout(ctx, shape) {
     }
   }
 
-  ctx.fillStyle = "rgba(255, 253, 247, 0.96)";
+  ctx.fillStyle = dark ? "rgba(17, 17, 17, 0.78)" : "rgba(255, 253, 247, 0.96)";
   ctx.strokeStyle = color;
   ctx.lineWidth = stroke;
   roundedRectPath(ctx, rect.x, rect.y, rect.width, rect.height, 10);
@@ -2523,7 +2793,7 @@ function drawCallout(ctx, shape) {
   if (shape.text) {
     ctx.font = `600 ${fontSize}px ${TEXT_FONT_FAMILY}`;
     ctx.textBaseline = "top";
-    ctx.fillStyle = "#2d261c";
+    ctx.fillStyle = dark ? "#ffffff" : "#2d261c";
     const padding = 9;
     const lines = String(shape.text).split("\n");
 
@@ -2566,6 +2836,190 @@ function drawRedact(ctx, shape) {
   ctx.save();
   ctx.fillStyle = shape.color || REDACTION_COLOR;
   ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+  ctx.restore();
+}
+
+function pixelateBlockSize(shape) {
+  return clampNumber(Math.round(shape.blockSize || DEFAULT_PIXELATE_BLOCK), MIN_PIXELATE_BLOCK, MAX_PIXELATE_BLOCK);
+}
+
+// Samples the base bitmap under `rect` and paints a coarse mosaic of it onto
+// `ctx` (in image-space coordinates), clipped to the rect. Shared by the live
+// renderer and the save burn-in so the on-screen and baked output match.
+function mosaicRegion(ctx, source, rect, blockSize) {
+  const sx = Math.max(0, Math.floor(rect.x));
+  const sy = Math.max(0, Math.floor(rect.y));
+  const sw = Math.min(source.width - sx, Math.ceil(rect.x + rect.width) - sx);
+  const sh = Math.min(source.height - sy, Math.ceil(rect.y + rect.height) - sy);
+
+  if (sw < 1 || sh < 1) {
+    return;
+  }
+
+  const block = clampNumber(Math.round(blockSize || DEFAULT_PIXELATE_BLOCK), MIN_PIXELATE_BLOCK, MAX_PIXELATE_BLOCK);
+  const smallWidth = Math.max(1, Math.ceil(sw / block));
+  const smallHeight = Math.max(1, Math.ceil(sh / block));
+
+  mosaicCanvas.width = smallWidth;
+  mosaicCanvas.height = smallHeight;
+  mosaicContext.imageSmoothingEnabled = false;
+  mosaicContext.clearRect(0, 0, smallWidth, smallHeight);
+  mosaicContext.drawImage(source, sx, sy, sw, sh, 0, 0, smallWidth, smallHeight);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.width, rect.height);
+  ctx.clip();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(mosaicCanvas, 0, 0, smallWidth, smallHeight, sx, sy, sw, sh);
+  ctx.restore();
+}
+
+function drawPixelate(ctx, shape) {
+  const rect = shapeBounds(shape);
+
+  if (rect.width < 1 || rect.height < 1) {
+    return;
+  }
+
+  mosaicRegion(ctx, state.baseCanvas, rect, pixelateBlockSize(shape));
+}
+
+function drawStamp(ctx, shape) {
+  const rect = shapeBounds(shape);
+
+  if (rect.width < 1 || rect.height < 1) {
+    return;
+  }
+
+  drawStampGlyph(ctx, shape.glyph || DEFAULT_STAMP_GLYPH, rect.x, rect.y, rect.width, rect.height, shape.color || DEFAULT_STAMP_COLOR, true);
+}
+
+// Draws one stamp glyph as crisp vector paths fitted to the given bbox. When
+// `halo` is true a soft white outline is laid down first so it reads on any
+// background (mirrors the white outline on badges/text). Reused at small size
+// to render the glyph-picker thumbnails.
+function drawStampGlyph(ctx, glyph, x, y, width, height, color, halo) {
+  const size = Math.min(width, height);
+  const cx = x + width / 2;
+  const cy = y + height / 2;
+  const haloWidth = Math.max(1, size * 0.16);
+
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  const strokeGlyph = (drawPath, lineWidth) => {
+    ctx.beginPath();
+    drawPath();
+
+    if (halo) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+      ctx.lineWidth = lineWidth + haloWidth;
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+  };
+
+  const fillGlyph = (drawPath) => {
+    ctx.beginPath();
+    drawPath();
+
+    if (halo) {
+      ctx.lineWidth = haloWidth;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = color;
+    ctx.fill();
+  };
+
+  switch (glyph) {
+    case "cross": {
+      const lineWidth = Math.max(2, size * 0.18);
+      const arm = size * 0.3;
+      strokeGlyph(() => {
+        ctx.moveTo(cx - arm, cy - arm);
+        ctx.lineTo(cx + arm, cy + arm);
+        ctx.moveTo(cx + arm, cy - arm);
+        ctx.lineTo(cx - arm, cy + arm);
+      }, lineWidth);
+      break;
+    }
+    case "star": {
+      const outer = size * 0.42;
+      const inner = outer * 0.42;
+      fillGlyph(() => {
+        for (let i = 0; i < 10; i += 1) {
+          const radius = i % 2 === 0 ? outer : inner;
+          const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+          const px = cx + Math.cos(angle) * radius;
+          const py = cy + Math.sin(angle) * radius;
+
+          if (i === 0) {
+            ctx.moveTo(px, py);
+          } else {
+            ctx.lineTo(px, py);
+          }
+        }
+
+        ctx.closePath();
+      });
+      break;
+    }
+    case "dot": {
+      fillGlyph(() => {
+        ctx.arc(cx, cy, size * 0.34, 0, Math.PI * 2);
+      });
+      break;
+    }
+    case "question":
+    case "exclaim": {
+      const radius = size * 0.44;
+      fillGlyph(() => {
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      });
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `800 ${size * 0.62}px ${TEXT_FONT_FAMILY}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(glyph === "question" ? "?" : "!", cx, cy + size * 0.04);
+      break;
+    }
+    case "arrow-right": {
+      const halfH = size * 0.22;
+      const headW = size * 0.32;
+      const tailW = size * 0.16;
+      const left = cx - size * 0.4;
+      const right = cx + size * 0.4;
+      fillGlyph(() => {
+        ctx.moveTo(left, cy - tailW);
+        ctx.lineTo(right - headW, cy - tailW);
+        ctx.lineTo(right - headW, cy - halfH);
+        ctx.lineTo(right, cy);
+        ctx.lineTo(right - headW, cy + halfH);
+        ctx.lineTo(right - headW, cy + tailW);
+        ctx.lineTo(left, cy + tailW);
+        ctx.closePath();
+      });
+      break;
+    }
+    case "check":
+    default: {
+      const lineWidth = Math.max(2, size * 0.18);
+      strokeGlyph(() => {
+        ctx.moveTo(cx - size * 0.32, cy + size * 0.02);
+        ctx.lineTo(cx - size * 0.08, cy + size * 0.28);
+        ctx.lineTo(cx + size * 0.34, cy - size * 0.28);
+      }, lineWidth);
+      break;
+    }
+  }
+
   ctx.restore();
 }
 
@@ -2675,10 +3129,31 @@ function renderFlattened() {
   const burnedContext = burnedCanvas.getContext("2d");
   burnedContext.drawImage(state.baseCanvas, 0, 0);
 
-  const redactShapes = state.shapes.filter((shape) => shape.type === "redact");
-  const remainingShapes = state.shapes.filter((shape) => shape.type !== "redact");
+  // Both redact and pixelate are privacy tools: they burn destructively into the
+  // base clone (and therefore the stored original) so the obscured pixels never
+  // survive and the obscuring can't be undone-away after save. Pixelate samples
+  // from a pristine copy of the base so overlapping pixelate rects don't read
+  // each other's already-mosaicked output.
+  const burnSourceCanvas = document.createElement("canvas");
+  burnSourceCanvas.width = width;
+  burnSourceCanvas.height = height;
+  burnSourceCanvas.getContext("2d").drawImage(state.baseCanvas, 0, 0);
 
-  redactShapes.forEach((shape) => drawShape(burnedContext, shape));
+  const burnInShapes = state.shapes.filter((shape) => shape.type === "redact" || shape.type === "pixelate");
+  const remainingShapes = state.shapes.filter((shape) => shape.type !== "redact" && shape.type !== "pixelate");
+  const redactionCount = burnInShapes.length;
+
+  burnInShapes.forEach((shape) => {
+    if (shape.type === "pixelate") {
+      const rect = shapeBounds(shape);
+
+      if (rect.width >= 1 && rect.height >= 1) {
+        mosaicRegion(burnedContext, burnSourceCanvas, rect, pixelateBlockSize(shape));
+      }
+    } else {
+      drawShape(burnedContext, shape);
+    }
+  });
 
   const flatCanvas = document.createElement("canvas");
   flatCanvas.width = width;
@@ -2689,7 +3164,7 @@ function renderFlattened() {
   flatContext.drawImage(burnedCanvas, 0, 0);
   remainingShapes.forEach((shape) => drawShape(flatContext, shape));
 
-  return { burnedCanvas, flatCanvas, remainingShapes, redactionCount: redactShapes.length };
+  return { burnedCanvas, flatCanvas, remainingShapes, redactionCount };
 }
 
 function canvasToBlob(canvas) {

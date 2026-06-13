@@ -295,6 +295,72 @@ body {
   accent-color: var(--accent);
 }
 
+.glyph-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.glyph-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, transform 100ms ease;
+}
+
+.glyph-button canvas {
+  width: 22px;
+  height: 22px;
+}
+
+.glyph-button:hover {
+  background: rgba(15, 118, 110, 0.08);
+  transform: scale(1.06);
+}
+
+.glyph-button.active {
+  border-color: var(--accent-strong);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px rgba(15, 118, 110, 0.3);
+}
+
+.backing-button {
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.backing-button + .backing-button {
+  margin-left: 4px;
+}
+
+.backing-button:hover {
+  background: rgba(15, 118, 110, 0.08);
+  color: var(--accent-strong);
+}
+
+.backing-button.active {
+  border-color: var(--accent-strong);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
 /* ---------- Main layout ---------- */
 
 .main {

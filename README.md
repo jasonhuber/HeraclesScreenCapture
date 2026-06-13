@@ -35,7 +35,10 @@ Or flip on **Auto-Step Capture** and just click through the task in the page —
 
 **Capture & Edit** (or **Edit Image** on any step) opens the screenshot in a full-tab editor. Annotations are objects, not baked pixels — every shape stays selectable, movable, resizable, and deletable across editing sessions, because the original bitmap, the annotation list, and the flattened export are stored separately.
 
-- Tools: Select (V), Arrow (A), Line (L), Box (R), Ellipse (E), Pen (P), Highlight (H), Text (T), Callout (C), numbered Badge (N), Redact (D), Crop (X), plus pan (Space-drag) and zoom (Ctrl+wheel, +/−, 0 to fit).
+- Tools: Select (V), Arrow (A), Line (L), Box (R), Ellipse (E), Pen (P), Highlight (H), Text (T), Callout (C), numbered Badge (N), Stamp (M), Pixelate (Z), Redact (D), Crop (X), plus pan (Space-drag) and zoom (Ctrl+wheel, +/−, 0 to fit).
+- **Stamps**: drop a checkmark, cross, star, dot, question, exclaim, or chunky arrow — recolorable and resizable, for marking steps approved/rejected/important.
+- **Pixelate**: a privacy mosaic over a region — softer-looking than solid redaction, and like redaction it is burned destructively into both the export and the stored original on save (the clear pixels do not survive). Use solid **Redact** when you need guaranteed secrecy; use **Pixelate** when you want it to still look like a screenshot.
+- **Text backing**: text and callouts can sit on a light or dark rounded pill so they stay legible on any background (Skitch-style), or "none" for the classic halo.
 - Undo/redo (Ctrl+Z / Ctrl+Y), arrow-key nudging, double-click to edit text and badge numbers.
 - **Suggested Redactions** previews automatically detected emails, names, IDs, and secrets from the page and converts them to redaction shapes in one click.
 - Redactions are burned destructively into both the stored original and the exported image on save — redacted pixels do not survive anywhere. All other annotations remain editable.
@@ -134,4 +137,4 @@ Possible next iterations:
 1. template-aware exports for a specific LMS target (SCORM 2004, xAPI)
 2. DOCX/PDF export
 3. collaborative review comments or approval states per step
-4. blur/spotlight de-emphasis tools in the editor (kept out so far because blur is not safe for true redaction)
+4. spotlight/dim de-emphasis (darken everything except a focus region)

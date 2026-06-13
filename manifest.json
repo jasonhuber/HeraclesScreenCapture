@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Heracles Screen Capture Coach",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Capture training screenshots, generate instructional markdown, and export both into a local folder.",
   "minimum_chrome_version": "116",
   "permissions": [

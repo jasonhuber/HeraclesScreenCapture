@@ -53,6 +53,18 @@
         <input type="range" id="fontInput" min="10" max="72" step="1" value="18" title="Font size">
         <span class="prop-value" id="fontValue">18</span>
       </div>
+      <div class="prop-group" id="pixelateGroup" hidden>
+        <span class="prop-label">Block</span>
+        <input type="range" id="pixelateInput" min="4" max="60" step="1" value="12" title="Mosaic block size">
+        <span class="prop-value" id="pixelateValue">12</span>
+      </div>
+      <div class="prop-group" id="glyphGroup" hidden>
+        <span class="prop-label">Glyph</span>
+        <div class="glyph-buttons" id="glyphButtons"></div>
+      </div>
+      <div class="prop-group" id="backingGroup" hidden>
+        <span class="prop-label">Backing</span>
+      </div>
       <div class="prop-group" id="cropGroup" hidden>
         <button class="button button-primary small-button" id="applyCropButton" type="button">Apply Crop</button>
         <button class="button button-secondary small-button" id="clearCropButton" type="button">Clear</button>
@@ -99,8 +111,14 @@
         <button class="tool-button" type="button" data-tool="badge" title="Badge (N)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><text x="12" y="16" text-anchor="middle" font-size="11" font-weight="700" fill="currentColor" stroke="none">1</text></svg>
         </button>
+        <button class="tool-button" type="button" data-tool="stamp" title="Stamp (M)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4 4L19 6.5"></path></svg>
+        </button>
         <button class="tool-button" type="button" data-tool="redact" title="Redact (D)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"></rect></svg>
+        </button>
+        <button class="tool-button" type="button" data-tool="pixelate" title="Pixelate (Z)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><rect x="4" y="4" width="5" height="5"></rect><rect x="14" y="4" width="5" height="5"></rect><rect x="9" y="9" width="5" height="5"></rect><rect x="4" y="14" width="5" height="5"></rect><rect x="14" y="14" width="5" height="5"></rect></g></svg>
         </button>
       </nav>
       <div class="workspace" id="workspace">
