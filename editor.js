@@ -44,6 +44,9 @@ const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 8;
 const MAX_HISTORY = 60;
 const TEXT_FONT_FAMILY = "\"Avenir Next\", \"Segoe UI\", sans-serif";
+const TEXT_LINE_HEIGHT = 1.3;
+const CALLOUT_PADDING = 9;
+const CALLOUT_MIN_HEIGHT = 36;
 
 const SWATCH_COLORS = ["#d97706", "#dc2626", "#2563eb", "#0f766e", "#7c3aed", "#111111", "#ffffff"];
 const SUGGESTION_KIND_COLORS = ["#dc2626", "#7c3aed", "#2563eb", "#b45309", "#0f766e", "#be185d"];
@@ -55,6 +58,7 @@ const FONT_SHAPE_TYPES = ["text", "callout", "badge"];
 const PIXELATE_SHAPE_TYPES = ["pixelate"];
 const GLYPH_SHAPE_TYPES = ["stamp"];
 const BACKING_SHAPE_TYPES = ["text", "callout"];
+const CURVE_SHAPE_TYPES = ["arrow"];
 
 const TOOL_SHORTCUTS = {
   v: "select",
@@ -113,6 +117,7 @@ const state = {
   stampGlyph: DEFAULT_STAMP_GLYPH,
   stampColor: DEFAULT_STAMP_COLOR,
   textBacking: DEFAULT_TEXT_BACKING,
+  arrowCurved: false,
   zoom: 1,
   panX: 0,
   panY: 0,
@@ -247,7 +252,8 @@ function cacheElements() {
     "zoomLevelButton", "fitButton", "suggestionsButton", "cancelButton", "saveButton",
     "propsBar", "colorGroup", "swatches", "colorInput", "strokeGroup", "strokeInput",
     "strokeValue", "fontGroup", "fontInput", "fontValue", "pixelateGroup", "pixelateInput",
-    "pixelateValue", "glyphGroup", "glyphButtons", "backingGroup", "cropGroup", "applyCropButton",
+    "pixelateValue", "glyphGroup", "glyphButtons", "backingGroup", "curveGroup", "curveToggle",
+    "cropGroup", "applyCropButton",
     "clearCropButton", "cropSizeLabel", "propHint", "toolbar", "workspace", "stage",
     "overlayLayer", "dropZone", "devFileInput", "suggestionsPopover", "suggestionsList",
     "applySuggestionsButton", "hideSuggestionsButton", "statusToast", "errorState",
@@ -380,6 +386,14 @@ function bindUi() {
     applyPixelateBlock(Number(elements.pixelateInput.value));
   });
   elements.pixelateInput.addEventListener("change", () => endPropEdit());
+
+  elements.curveToggle.addEventListener("click", () => {
+    const selected = getShapeById(state.selectedId);
+    const current = selected && selected.type === "arrow"
+      ? selected.curved === true
+      : state.arrowCurved;
+    applyArrowCurved(!current);
+  });
 
   elements.toolButtons.forEach((button) => {
     button.addEventListener("click", () => setTool(button.dataset.tool));
@@ -663,6 +677,10 @@ function serializeShape(shape) {
     out.backing = shape.backing;
   }
 
+  if (shape.type === "arrow" && shape.curved === true) {
+    out.curved = true;
+  }
+
   if (Array.isArray(shape.points)) {
     out.points = shape.points.map((point) => ({ x: roundCoord(point.x), y: roundCoord(point.y) }));
   }
@@ -721,8 +739,45 @@ function measureTextBlock(text, fontSize) {
 
   return {
     width: Math.max(widest, fontSize * 0.6),
-    height: Math.max(lines.length, 1) * fontSize * 1.25
+    height: Math.max(lines.length, 1) * fontSize * TEXT_LINE_HEIGHT
   };
+}
+
+// Splits text into rendered lines: explicit "\n" are hard breaks, then each
+// paragraph is soft-wrapped to maxWidth by whole words. A single word wider
+// than maxWidth is left to overflow rather than broken mid-word. Sets ctx.font
+// from fontSize so callers do not have to pre-set it.
+function wrapTextLines(ctx, text, maxWidth, fontSize) {
+  ctx.font = `600 ${fontSize}px ${TEXT_FONT_FAMILY}`;
+  const limit = Math.max(1, maxWidth);
+  const paragraphs = String(text || "").split("\n");
+  const out = [];
+
+  paragraphs.forEach((paragraph) => {
+    const words = paragraph.split(/(\s+)/u).filter((token) => token.length > 0);
+
+    if (words.length === 0) {
+      out.push("");
+      return;
+    }
+
+    let current = "";
+
+    words.forEach((word) => {
+      const candidate = current + word;
+
+      if (current && ctx.measureText(candidate).width > limit) {
+        out.push(current.replace(/\s+$/u, ""));
+        current = /^\s+$/u.test(word) ? "" : word;
+      } else {
+        current = candidate;
+      }
+    });
+
+    out.push(current.replace(/\s+$/u, ""));
+  });
+
+  return out;
 }
 
 function shapeBounds(shape) {
@@ -1088,6 +1143,28 @@ function applyTextBacking(backing) {
   scheduleRender();
 }
 
+function applyArrowCurved(curved) {
+  const value = curved === true;
+  const selected = getShapeById(state.selectedId);
+
+  if (selected && selected.type === "arrow") {
+    if ((selected.curved === true) !== value) {
+      pushHistory(false);
+
+      if (value) {
+        selected.curved = true;
+      } else {
+        delete selected.curved;
+      }
+    }
+  } else {
+    state.arrowCurved = value;
+  }
+
+  updatePropsBar();
+  scheduleRender();
+}
+
 function textBackingOf(shape) {
   if (shape.backing === "light" || shape.backing === "dark") {
     return shape.backing;
@@ -1118,6 +1195,7 @@ function updatePropsBar() {
   const showPixelate = PIXELATE_SHAPE_TYPES.includes(colorTarget);
   const showGlyph = GLYPH_SHAPE_TYPES.includes(colorTarget);
   const showBacking = BACKING_SHAPE_TYPES.includes(colorTarget);
+  const showCurve = CURVE_SHAPE_TYPES.includes(colorTarget);
   const showCrop = state.tool === "crop" && Boolean(state.cropRect);
 
   elements.colorGroup.hidden = !showColor;
@@ -1126,6 +1204,7 @@ function updatePropsBar() {
   elements.pixelateGroup.hidden = !showPixelate;
   elements.glyphGroup.hidden = !showGlyph;
   elements.backingGroup.hidden = !showBacking;
+  elements.curveGroup.hidden = !showCurve;
   elements.cropGroup.hidden = !showCrop;
 
   const activeColor = selected && selected.color ? selected.color : currentDefaultColor();
@@ -1172,6 +1251,14 @@ function updatePropsBar() {
         button.classList.toggle("active", button.dataset.backing === activeBacking);
       }
     });
+  }
+
+  if (showCurve) {
+    const activeCurve = selected && selected.type === "arrow"
+      ? selected.curved === true
+      : state.arrowCurved;
+    elements.curveToggle.classList.toggle("active", activeCurve);
+    elements.curveToggle.setAttribute("aria-pressed", String(activeCurve));
   }
 
   if (showCrop && state.cropRect) {
@@ -1332,21 +1419,25 @@ function onPointerDown(event) {
       placeStamp(point);
       break;
     case "arrow":
-    case "line":
-      state.gesture = {
-        type: "draw",
-        shape: {
-          id: makeShapeId(),
-          type: state.tool,
-          x: point.x,
-          y: point.y,
-          width: 0,
-          height: 0,
-          color: state.color,
-          strokeWidth: state.strokeWidth
-        }
+    case "line": {
+      const drawShape = {
+        id: makeShapeId(),
+        type: state.tool,
+        x: point.x,
+        y: point.y,
+        width: 0,
+        height: 0,
+        color: state.color,
+        strokeWidth: state.strokeWidth
       };
+
+      if (state.tool === "arrow" && state.arrowCurved) {
+        drawShape.curved = true;
+      }
+
+      state.gesture = { type: "draw", shape: drawShape };
       break;
+    }
     case "pixelate":
       state.gesture = {
         type: "draw",
@@ -1675,6 +1766,11 @@ function applyResize(gesture, point) {
   shape.y = next.y;
   shape.width = next.width;
   shape.height = next.height;
+
+  if (shape.type === "callout") {
+    // New width re-wraps the text; grow to fit but honour the dragged height.
+    growCalloutToFit(shape, next.height);
+  }
 }
 
 function onPointerUp(event) {
@@ -2194,6 +2290,11 @@ function commitTextEditing() {
   if (editing.isNew) {
     if (value.trim()) {
       shape.text = value;
+
+      if (shape.type === "callout") {
+        growCalloutToFit(shape);
+      }
+
       commitHistory(editing.before);
       state.shapes.push(shape);
       state.selectedId = shape.id;
@@ -2204,6 +2305,10 @@ function commitTextEditing() {
   } else if (value !== editing.originalText) {
     commitHistory(editing.before);
     shape.text = value;
+
+    if (shape.type === "callout") {
+      growCalloutToFit(shape);
+    }
   }
 
   updatePropsBar();
@@ -2585,30 +2690,132 @@ function drawShape(ctx, shape) {
   }
 }
 
-function drawArrow(ctx, shape) {
+// Builds the closed outline of a confident filled arrow: a shaft that tapers
+// from a thin tail to a wider neck, then a triangular head with a slightly
+// concave (barbed) back edge. The shaft follows a straight chord by default,
+// or a quadratic bow when shape.curved is true. All geometry stays anchored to
+// the endpoints (tail = x,y; tip = x+width,y+height) so interaction is unchanged.
+function buildArrowPolygon(shape) {
   const x1 = shape.x;
   const y1 = shape.y;
   const x2 = shape.x + shape.width;
   const y2 = shape.y + shape.height;
+  const length = Math.hypot(x2 - x1, y2 - y1) || 1;
   const stroke = Math.max(1, shape.strokeWidth || DEFAULT_STROKE);
-  const angle = Math.atan2(y2 - y1, x2 - x1);
-  const head = Math.max(10, stroke * 3.2);
+
+  const tailWidth = stroke * 0.6;
+  const neckWidth = stroke * 1.6;
+  const headHalf = Math.max(9, stroke * 3);
+  // Keep the head from overrunning the shaft on very short arrows.
+  const headLen = Math.min(Math.max(14, stroke * 4.5), length * 0.7);
+  const barb = headLen * 0.28;
+
+  const curved = shape.curved === true && length > headLen * 1.5;
+  // Control point bows the chord perpendicular by ~18% of the arrow length.
+  const ux = (x2 - x1) / length;
+  const uy = (y2 - y1) / length;
+  const nx = -uy;
+  const ny = ux;
+  const bow = curved ? length * 0.18 : 0;
+  const cx = (x1 + x2) / 2 + nx * bow;
+  const cy = (y1 + y2) / 2 + ny * bow;
+
+  // Sample the centreline as a quadratic Bezier (degenerates to a line when
+  // bow === 0). Each sample carries its position and unit tangent.
+  const samples = curved ? 24 : 1;
+  const spine = [];
+
+  for (let i = 0; i <= samples; i += 1) {
+    const t = i / samples;
+    const mt = 1 - t;
+    const px = mt * mt * x1 + 2 * mt * t * cx + t * t * x2;
+    const py = mt * mt * y1 + 2 * mt * t * cy + t * t * y2;
+    let tx = 2 * mt * (cx - x1) + 2 * t * (x2 - cx);
+    let ty = 2 * mt * (cy - y1) + 2 * t * (y2 - cy);
+
+    if (!curved) {
+      tx = x2 - x1;
+      ty = y2 - y1;
+    }
+
+    const tlen = Math.hypot(tx, ty) || 1;
+    spine.push({ x: px, y: py, tx: tx / tlen, ty: ty / tlen, t });
+  }
+
+  const tip = spine[spine.length - 1];
+  // Neck sits headLen back from the tip along the spine arc-length.
+  let neckIndex = spine.length - 1;
+  let acc = 0;
+
+  for (let i = spine.length - 1; i > 0; i -= 1) {
+    acc += Math.hypot(spine[i].x - spine[i - 1].x, spine[i].y - spine[i - 1].y);
+
+    if (acc >= headLen) {
+      neckIndex = i - 1;
+      break;
+    }
+
+    neckIndex = i - 1;
+  }
+
+  const neck = spine[neckIndex];
+  const left = [];
+  const right = [];
+
+  // Walk the shaft from tail to neck, offsetting each side by an interpolated
+  // half-width (tail -> neck) so the body tapers.
+  for (let i = 0; i <= neckIndex; i += 1) {
+    const point = spine[i];
+    const progress = neckIndex > 0 ? i / neckIndex : 1;
+    const half = (tailWidth + (neckWidth - tailWidth) * progress) / 2;
+    const ox = -point.ty * half;
+    const oy = point.tx * half;
+    left.push({ x: point.x + ox, y: point.y + oy });
+    right.push({ x: point.x - ox, y: point.y - oy });
+  }
+
+  const headBaseLeft = { x: neck.x - neck.ty * headHalf, y: neck.y + neck.tx * headHalf };
+  const headBaseRight = { x: neck.x + neck.ty * headHalf, y: neck.y - neck.tx * headHalf };
+  // Barb: pull the back corners toward the tail so the head's rear edge is concave.
+  const barbLeft = { x: headBaseLeft.x + neck.tx * barb, y: headBaseLeft.y + neck.ty * barb };
+  const barbRight = { x: headBaseRight.x + neck.tx * barb, y: headBaseRight.y + neck.ty * barb };
+
+  const polygon = [];
+  left.forEach((p) => polygon.push(p));
+  polygon.push(barbLeft, headBaseLeft, { x: tip.x, y: tip.y }, headBaseRight, barbRight);
+
+  for (let i = right.length - 1; i >= 0; i -= 1) {
+    polygon.push(right[i]);
+  }
+
+  return polygon;
+}
+
+function drawArrow(ctx, shape) {
+  const polygon = buildArrowPolygon(shape);
+
+  if (polygon.length < 3) {
+    return;
+  }
 
   ctx.save();
-  ctx.strokeStyle = shape.color || DEFAULT_COLOR;
-  ctx.fillStyle = shape.color || DEFAULT_COLOR;
-  ctx.lineWidth = stroke;
-  ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2 - Math.cos(angle) * head * 0.7, y2 - Math.sin(angle) * head * 0.7);
+  ctx.moveTo(polygon[0].x, polygon[0].y);
+
+  for (let i = 1; i < polygon.length; i += 1) {
+    ctx.lineTo(polygon[i].x, polygon[i].y);
+  }
+
+  ctx.closePath();
+
+  // Translucent white halo so the arrow reads on busy screenshots, matching
+  // how stamps/badges halo their outline.
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.lineWidth = Math.max(2, (shape.strokeWidth || DEFAULT_STROKE) * 0.6);
   ctx.stroke();
 
-  ctx.beginPath();
-  ctx.moveTo(x2, y2);
-  ctx.lineTo(x2 - Math.cos(angle - 0.45) * head, y2 - Math.sin(angle - 0.45) * head);
-  ctx.lineTo(x2 - Math.cos(angle + 0.45) * head, y2 - Math.sin(angle + 0.45) * head);
-  ctx.closePath();
+  ctx.fillStyle = shape.color || DEFAULT_COLOR;
   ctx.fill();
   ctx.restore();
 }
@@ -2733,7 +2940,7 @@ function drawText(ctx, shape) {
   ctx.fillStyle = shape.color || DEFAULT_COLOR;
 
   lines.forEach((line, index) => {
-    const y = shape.y + index * fontSize * 1.25;
+    const y = shape.y + index * fontSize * TEXT_LINE_HEIGHT;
 
     if (backing === "none") {
       ctx.strokeText(line, shape.x, y);
@@ -2791,22 +2998,42 @@ function drawCallout(ctx, shape) {
   ctx.stroke();
 
   if (shape.text) {
-    ctx.font = `600 ${fontSize}px ${TEXT_FONT_FAMILY}`;
+    const padding = CALLOUT_PADDING;
+    const interiorWidth = Math.max(1, rect.width - padding * 2);
+    const lines = wrapTextLines(ctx, shape.text, interiorWidth, fontSize);
     ctx.textBaseline = "top";
     ctx.fillStyle = dark ? "#ffffff" : "#2d261c";
-    const padding = 9;
-    const lines = String(shape.text).split("\n");
 
+    // Clip stays as a safety net even though wrapping fits the interior width.
     ctx.beginPath();
     ctx.rect(rect.x + 2, rect.y + 2, Math.max(0, rect.width - 4), Math.max(0, rect.height - 4));
     ctx.clip();
 
     lines.forEach((line, index) => {
-      ctx.fillText(line, rect.x + padding, rect.y + padding + index * fontSize * 1.25);
+      ctx.fillText(line, rect.x + padding, rect.y + padding + index * fontSize * TEXT_LINE_HEIGHT);
     });
   }
 
   ctx.restore();
+}
+
+// Height needed to fit the wrapped callout text at its current width, clamped
+// to a sensible minimum. Shared by render, the text-commit path, and resize so
+// they all agree on the auto-grown box height.
+function calloutFittedHeight(shape) {
+  const fontSize = shape.fontSize || DEFAULT_FONT_SIZE;
+  const rect = normalizeRect({ x: shape.x, y: shape.y, width: shape.width, height: shape.height });
+  const interiorWidth = Math.max(1, rect.width - CALLOUT_PADDING * 2);
+  const lines = wrapTextLines(measureContext, shape.text || "", interiorWidth, fontSize);
+  const needed = CALLOUT_PADDING * 2 + Math.max(lines.length, 1) * fontSize * TEXT_LINE_HEIGHT;
+  return Math.max(CALLOUT_MIN_HEIGHT, needed);
+}
+
+// Grows shape.height so the wrapped text fits, never shrinking below the
+// user-dragged height. Width stays user-controlled and drives the wrap.
+function growCalloutToFit(shape, userHeight) {
+  const baseline = typeof userHeight === "number" ? userHeight : shape.height || 0;
+  shape.height = Math.max(baseline, calloutFittedHeight(shape));
 }
 
 function drawBadge(ctx, shape) {

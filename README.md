@@ -39,6 +39,8 @@ Or flip on **Auto-Step Capture** and just click through the task in the page —
 - **Stamps**: drop a checkmark, cross, star, dot, question, exclaim, or chunky arrow — recolorable and resizable, for marking steps approved/rejected/important.
 - **Pixelate**: a privacy mosaic over a region — softer-looking than solid redaction, and like redaction it is burned destructively into both the export and the stored original on save (the clear pixels do not survive). Use solid **Redact** when you need guaranteed secrecy; use **Pixelate** when you want it to still look like a screenshot.
 - **Text backing**: text and callouts can sit on a light or dark rounded pill so they stay legible on any background (Skitch-style), or "none" for the classic halo.
+- **Arrows** are drawn as filled, tapered shapes (thin tail → barbed head) with a white halo so they read on any screenshot; toggle **Curve** for a bowed arrow. The stroke slider controls overall thickness.
+- **Callouts wrap and auto-fit**: note text word-wraps to the box width and the box grows to fit what you type — no more clipped text. Drag the box narrower and the text re-flows.
 - Undo/redo (Ctrl+Z / Ctrl+Y), arrow-key nudging, double-click to edit text and badge numbers.
 - **Suggested Redactions** previews automatically detected emails, names, IDs, and secrets from the page and converts them to redaction shapes in one click.
 - Redactions are burned destructively into both the stored original and the exported image on save — redacted pixels do not survive anywhere. All other annotations remain editable.
