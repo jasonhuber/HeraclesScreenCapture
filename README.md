@@ -124,6 +124,20 @@ This extension implements options 1 and 2.
 - `editor.html` / `editor.css` / `editor.js` — the full-tab annotation editor. Open it as `editor.html?dev=1` outside the extension for standalone testing with any local image.
 - Storage: capture metadata in `chrome.storage.local`; image blobs (flattened asset + un-annotated original) and annotation objects in IndexedDB, so steps remain re-editable across sessions.
 
+## Development and tests
+
+The extension has no build step — load the folder unpacked and edit the source directly. Pure logic (Markdown
+rendering, the narration image-tag rewriting, the hand-rolled ZIP/CRC-32 writer, and the SCORM 1.2 manifest) is
+covered by a zero-dependency Node test suite:
+
+```
+npm test        # or: node test/run.mjs
+```
+
+The ZIP test cross-checks the hand-rolled CRC-32 against Node's `zlib.crc32`, so a corrupt archive writer fails the
+suite rather than shipping a broken `.zip`. DOM- and `chrome`-bound code (capture, the canvas editor, dictation) is
+exercised manually and via the editor's standalone `editor.html?dev=1` mode.
+
 ## Load the extension
 
 1. Open `chrome://extensions`
