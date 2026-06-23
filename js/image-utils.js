@@ -1,4 +1,5 @@
 import { normalizeInlineText } from "./markdown.js";
+import { downscaleDimensions, formatToMime, isLossyFormat } from "./settings.js";
 
 export function sleep(milliseconds) {
   return new Promise((resolve) => {
@@ -34,6 +35,62 @@ export async function canvasToBlob(canvas) {
       reject(new Error("Chrome could not encode the edited image."));
     }, "image/png");
   });
+}
+
+// Encodes a canvas as the chosen export format. Quality only applies to lossy
+// formats (webp/jpeg); PNG ignores it. Stored originals must keep using
+// canvasToBlob() (lossless PNG) — this is for the exported/flattened asset.
+export async function encodeCanvasBlob(canvas, format, quality) {
+  const mime = formatToMime(format);
+
+  return new Promise((resolve, reject) => {
+    const onBlob = (blob) => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+
+      reject(new Error("Chrome could not encode the captured image."));
+    };
+
+    if (isLossyFormat(format)) {
+      canvas.toBlob(onBlob, mime, quality);
+    } else {
+      canvas.toBlob(onBlob, mime);
+    }
+  });
+}
+
+// Loads a data URL into a fresh 2D canvas at its natural size.
+export async function dataUrlToCanvas(dataUrl) {
+  const image = await loadImage(dataUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+  canvas.getContext("2d").drawImage(image, 0, 0);
+  return canvas;
+}
+
+// Returns a NEW canvas downscaled to the max-width cap (high-quality smoothing).
+// If maxWidth is 0 or the canvas is already within the cap, returns the original
+// canvas untouched.
+export function downscaleCanvas(canvas, maxWidth) {
+  const target = downscaleDimensions(canvas.width, canvas.height, maxWidth);
+
+  if (!target.scaled) {
+    return canvas;
+  }
+
+  const next = document.createElement("canvas");
+  next.width = target.width;
+  next.height = target.height;
+
+  const context = next.getContext("2d");
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(canvas, 0, 0, target.width, target.height);
+
+  return next;
 }
 
 export async function dataUrlToBlob(dataUrl) {

@@ -131,9 +131,10 @@ export function deriveSuggestedTitle(pageContext, captureNumber) {
   return `Open ${candidate}`;
 }
 
-export function buildCaptureFileName(title, captureId) {
+export function buildCaptureFileName(title, captureId, extension = "png") {
   const shortId = captureId.split("-").slice(-1)[0];
-  return `step-${slugify(title) || "screen"}-${shortId}.png`;
+  const ext = String(extension || "png").replace(/^\.+/, "").toLowerCase() || "png";
+  return `step-${slugify(title) || "screen"}-${shortId}.${ext}`;
 }
 
 export function createCaptureId() {

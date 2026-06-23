@@ -55,6 +55,16 @@ parks itself with a one-line notice (Focus / Use Side Panel Instead) so the two 
 the floating window hands control back to the side panel automatically. Chrome does not offer always-on-top windows to
 extensions, so the float window layers like any normal window.
 
+## Settings
+
+A Settings card in the side panel controls:
+
+- **Image format** — PNG (sharpest, largest), WebP (small and still crisp — a good default for big runs), or JPEG (smallest, softer). Format applies to the exported/stored screenshots; the editor's re-editable originals always stay lossless PNG so repeated edits never degrade.
+- **Max width** — optionally downscale captures (e.g. cap at 1600 px). Applied once at capture time, so a full-page grab of a huge page no longer produces a multi-megapixel PNG. Annotations and redaction regions are computed in the final coordinate space, so nothing drifts.
+- **Image quality** — quality slider for the lossy formats.
+- **Voice transcription provider** — Browser (default, free) or OpenAI Whisper (see below).
+- **Storage usage** — shows how much local storage the cached captures are using. The extension requests `unlimitedStorage`, so long runs aren't capped at Chrome's default 10 MB; if the disk does fill, saves fail with an actionable message instead of a silent error.
+
 ## Voice dictation
 
 Click **Dictate** in the Live Narration card (or press `Ctrl+Shift+3` / `Cmd+Shift+3`) and speak — finalized phrases are inserted at your cursor with smart spacing and capitalization, and an interim line previews what's being recognized. Spoken commands: "period", "comma", "question mark", "exclamation mark", "colon", "semicolon", "new line", "new paragraph".
@@ -62,6 +72,8 @@ Click **Dictate** in the Live Narration card (or press `Ctrl+Shift+3` / `Cmd+Shi
 Auto-Step Capture has its own voice mode (the **Capture my voice too** checkbox): dictation starts and stops with the recording, and instead of following your cursor, each spoken phrase is routed under the step you most recently clicked — replacing the drafted "Click **X**." line with your actual narration. Speech before the first click becomes an intro paragraph.
 
 Engine details: dictation uses Chrome's built-in Web Speech API (audio is processed by Google's speech service — keep that in mind for sensitive environments). The first start opens a one-time microphone permission page. Chrome historically blocks the Speech API in some extension contexts, so if the side panel engine fails, the extension automatically falls back to running recognition inside the active page (Chrome may then ask for mic permission per site); the working engine is remembered.
+
+**OpenAI Whisper (optional).** Set the transcription provider to OpenAI Whisper in Settings and paste an API key (stored only in this browser) to use Whisper for the **Dictate** button: it records audio, uploads it to OpenAI after you stop, and inserts the transcript — much better punctuation and technical-term accuracy than the browser engine. Whisper is batch (no live preview), so auto-capture's live per-step voice routing always uses the browser engine even when Whisper is selected. Audio leaves the machine for OpenAI; keep Browser mode for sensitive screens.
 
 ## Keyboard shortcuts
 
@@ -151,6 +163,6 @@ exercised manually and via the editor's standalone `editor.html?dev=1` mode.
 Possible next iterations:
 
 1. template-aware exports for a specific LMS target (SCORM 2004, xAPI)
-2. DOCX/PDF export
+2. DOCX/PDF export (and a Whisper "clean up my narration" pass, reusing the API-key plumbing)
 3. collaborative review comments or approval states per step
 4. spotlight/dim de-emphasis (darken everything except a focus region)

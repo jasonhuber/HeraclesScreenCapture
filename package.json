@@ -1,6 +1,6 @@
 {
   "name": "heracles-screen-capture-coach",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "Chrome extension for documenting web apps as LMS-ready Markdown with screenshots, annotation, and SCORM export.",
   "type": "module",

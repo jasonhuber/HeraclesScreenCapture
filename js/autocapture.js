@@ -7,7 +7,19 @@ import {
 } from "./capture.js";
 import { storeCaptureAnnotations, storeCaptureAsset, storeCaptureOriginal } from "./db.js";
 import { prepareDictatedChunk, startRoutedDictation, stopRoutedDictation } from "./dictation.js";
-import { canvasToBlob, clampNumber, dataUrlToBlob, loadImage } from "./image-utils.js";
+import {
+  canvasToBlob,
+  clampNumber,
+  dataUrlToCanvas,
+  downscaleCanvas,
+  encodeCanvasBlob
+} from "./image-utils.js";
+import {
+  formatToExtension,
+  getImageFormat,
+  getImageQuality,
+  getMaxCaptureWidth
+} from "./settings.js";
 import { buildAutoInstruction, buildCaptureFileName, buildCaptureMarkdown, normalizeInlineText } from "./markdown.js";
 import {
   ensureRunFolderSlug,
@@ -233,9 +245,12 @@ async function processAutoClick(payload) {
 
   const runFolderSlug = await ensureRunFolderSlug();
   const rawDataUrl = await captureVisibleTab(tab.windowId);
-  const image = await loadImage(rawDataUrl);
+  // Downscale once, up front, so the badge/box, the stored original, the
+  // annotations, and the encoded asset all live in one (final) coordinate space.
+  const nativeCanvas = await dataUrlToCanvas(rawDataUrl);
+  const baseCanvas = downscaleCanvas(nativeCanvas, getMaxCaptureWidth());
   const stepNumber = state.captures.length + 1;
-  const marker = drawClickMarkers(image, payload, stepNumber);
+  const marker = drawClickMarkers(baseCanvas, payload, stepNumber);
 
   const pageContext = {
     title: tab.title || "",
@@ -264,7 +279,7 @@ async function processAutoClick(payload) {
       ? `Click ${roleLabel}`
       : "Click the highlighted area";
   captureMeta.suggestedTitle = captureMeta.title;
-  captureMeta.fileName = buildCaptureFileName(captureMeta.title, captureMeta.id);
+  captureMeta.fileName = buildCaptureFileName(captureMeta.title, captureMeta.id, formatToExtension(getImageFormat()));
   captureMeta.relativeImagePath = `screenshots/${captureMeta.fileName}`;
   captureMeta.clickContext = {
     label,
@@ -273,8 +288,10 @@ async function processAutoClick(payload) {
     rect: marker.elementRect || null
   };
 
-  const flattenedBlob = await canvasToBlob(marker.canvas);
-  const unmarkedBlob = await dataUrlToBlob(rawDataUrl);
+  // Asset (referenced by markdown / written to disk) uses the chosen format;
+  // the stored original stays lossless PNG at the same final size.
+  const flattenedBlob = await encodeCanvasBlob(marker.canvas, getImageFormat(), getImageQuality());
+  const unmarkedBlob = await canvasToBlob(baseCanvas);
 
   await storeCaptureOriginal(captureMeta.id, unmarkedBlob);
   await storeCaptureAnnotations(captureMeta.id, {
@@ -310,14 +327,16 @@ async function processAutoClick(payload) {
   setStatus(`Auto-captured step ${currentCapture.indexLabel} (${currentCapture.title}).`, "success");
 }
 
-function drawClickMarkers(image, payload, stepNumber) {
+function drawClickMarkers(source, payload, stepNumber) {
   const canvas = document.createElement("canvas");
-  canvas.width = image.naturalWidth || image.width;
-  canvas.height = image.naturalHeight || image.height;
+  canvas.width = source.naturalWidth || source.width;
+  canvas.height = source.naturalHeight || source.height;
 
   const context = canvas.getContext("2d");
-  context.drawImage(image, 0, 0);
+  context.drawImage(source, 0, 0);
 
+  // scaleX/scaleY map page-viewport click/element coords into the final
+  // (possibly downscaled) canvas space, since canvas.width is the final width.
   const scaleX = canvas.width / Math.max(1, Number(payload.viewportWidth) || canvas.width);
   const scaleY = canvas.height / Math.max(1, Number(payload.viewportHeight) || canvas.height);
   const shapes = [];

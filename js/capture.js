@@ -12,12 +12,20 @@ import {
 import {
   cloneRects,
   cropDataUrl,
-  getImageDimensions,
+  dataUrlToCanvas,
+  downscaleCanvas,
+  encodeCanvasBlob,
   loadImage,
   remapRectsToRegion,
   scaleRectsToAsset,
   sleep
 } from "./image-utils.js";
+import {
+  formatToExtension,
+  getImageFormat,
+  getImageQuality,
+  getMaxCaptureWidth
+} from "./settings.js";
 import { storeCaptureAsset } from "./db.js";
 import {
   buildCaptureFileName,
@@ -292,13 +300,25 @@ export async function prepareCaptureSession() {
     sourceSensitiveRects = Array.isArray(pageContext.sensitiveRects) ? pageContext.sensitiveRects : [];
   }
 
-  const imageSize = await getImageDimensions(screenshotDataUrl);
+  // Downscale once, at capture time, to the configured cap. The final-size
+  // bitmap becomes the working image for everything downstream — the editor
+  // base, the stored original, sensitiveRects, and the encoded asset all share
+  // this one coordinate space, so re-edits never drift.
+  const nativeCanvas = await dataUrlToCanvas(screenshotDataUrl);
+  const finalCanvas = downscaleCanvas(nativeCanvas, getMaxCaptureWidth());
+
+  if (finalCanvas !== nativeCanvas) {
+    screenshotDataUrl = finalCanvas.toDataURL("image/png");
+  }
+
+  const finalWidth = finalCanvas.width;
+  const finalHeight = finalCanvas.height;
   const sensitiveRects = scaleRectsToAsset(
     sourceSensitiveRects,
     sourceWidth,
     sourceHeight,
-    imageSize.width,
-    imageSize.height
+    finalWidth,
+    finalHeight
   );
 
   const captureMeta = buildCaptureMeta({
@@ -307,8 +327,8 @@ export async function prepareCaptureSession() {
     runFolderSlug,
     captureMode: state.captureMode,
     sensitiveRects,
-    assetWidth: imageSize.width,
-    assetHeight: imageSize.height
+    assetWidth: finalWidth,
+    assetHeight: finalHeight
   });
 
   return {
@@ -324,7 +344,7 @@ export function buildCaptureMeta({ activeTab, pageContext, runFolderSlug, captur
   const id = createCaptureId();
   const suggestedTitle = deriveSuggestedTitle(pageContext, captureNumber);
   const title = normalizeInlineText(suggestedTitle || pageContext.title || `Screen ${indexLabel}`);
-  const fileName = buildCaptureFileName(title, id);
+  const fileName = buildCaptureFileName(title, id, formatToExtension(getImageFormat()));
 
   return {
     id,
@@ -361,7 +381,19 @@ export async function finalizeNewCapture(session, blob, edited) {
     edited
   };
 
-  await storeCaptureAsset(captureMeta.id, blob);
+  // The blob handed in by the caller is the final-size PNG. For the quick path
+  // (no editor), encode the stored asset in the configured format/quality. PNG
+  // can keep the supplied blob as-is; lossy formats are re-encoded from the
+  // final-size bitmap.
+  const format = getImageFormat();
+  let assetBlob = blob;
+
+  if (format !== "png" && session.screenshotDataUrl) {
+    const canvas = await dataUrlToCanvas(session.screenshotDataUrl);
+    assetBlob = await encodeCanvasBlob(canvas, format, getImageQuality());
+  }
+
+  await storeCaptureAsset(captureMeta.id, assetBlob);
 
   state.captures.push(captureMeta);
   syncCaptureOrdering({ updateNarration: false });

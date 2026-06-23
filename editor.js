@@ -3407,6 +3407,49 @@ function canvasToBlob(canvas) {
   });
 }
 
+// Editor is a classic script and can't import settings.js, so it reads the
+// chosen export format/quality straight from chrome.storage.local (same keys
+// and defaults as js/settings.js). Falls back to PNG when storage is absent
+// (e.g. editor.html?dev=1) so the save path never throws.
+async function readAssetEncoding() {
+  const fallback = { mime: "image/png", quality: 0.85, lossy: false };
+
+  try {
+    if (!chrome?.storage?.local) {
+      return fallback;
+    }
+
+    const stored = await chrome.storage.local.get({ imageFormat: "png", imageQuality: 0.85 });
+    const format = ["png", "webp", "jpeg"].includes(stored.imageFormat) ? stored.imageFormat : "png";
+    const lossy = format === "webp" || format === "jpeg";
+    const mime = format === "webp" ? "image/webp" : format === "jpeg" ? "image/jpeg" : "image/png";
+    const rawQuality = Number(stored.imageQuality);
+    const quality = Number.isFinite(rawQuality) ? Math.min(1, Math.max(0.4, rawQuality)) : 0.85;
+    return { mime, quality, lossy };
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function encodeAssetBlob(canvas, encoding) {
+  return new Promise((resolve, reject) => {
+    const onBlob = (blob) => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+
+      reject(new Error("Chrome could not encode the image."));
+    };
+
+    if (encoding.lossy) {
+      canvas.toBlob(onBlob, encoding.mime, encoding.quality);
+    } else {
+      canvas.toBlob(onBlob, encoding.mime);
+    }
+  });
+}
+
 function buildResultRecord(type) {
   const record = {
     type,
@@ -3475,7 +3518,13 @@ async function doSave() {
       return;
     }
 
-    const [flatBlob, baseBlob] = await Promise.all([canvasToBlob(flatCanvas), canvasToBlob(burnedCanvas)]);
+    // Original stays lossless PNG (the editor re-edits from it); the exported
+    // asset is encoded in the user's chosen format/quality.
+    const encoding = await readAssetEncoding();
+    const [flatBlob, baseBlob] = await Promise.all([
+      encodeAssetBlob(flatCanvas, encoding),
+      canvasToBlob(burnedCanvas)
+    ]);
 
     await idbPut(ANNOTATION_STORE, state.captureId, {
       version: 1,
@@ -3489,6 +3538,7 @@ async function doSave() {
     const record = buildResultRecord("editor-saved");
     record.width = flatCanvas.width;
     record.height = flatCanvas.height;
+    record.format = encoding.mime;
 
     await appendPendingResult(record);
     await sendResultMessage(record);

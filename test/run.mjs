@@ -25,6 +25,12 @@ import {
 } from "../js/markdown.js";
 import { buildZipBlob } from "../js/zip.js";
 import { buildScormManifest } from "../js/export-formats.js";
+import {
+  downscaleDimensions,
+  formatToExtension,
+  formatToMime,
+  isLossyFormat
+} from "../js/settings.js";
 
 const tests = [];
 function test(name, fn) {
@@ -86,6 +92,50 @@ test("buildAutoInstruction falls back cleanly with no context", () => {
 test("buildCaptureFileName is slugged and id-suffixed", () => {
   const name = buildCaptureFileName("Create New Policy", "capture-abc-def123");
   assert.match(name, /^step-create-new-policy-[a-z0-9]+\.png$/);
+});
+
+test("buildCaptureFileName defaults to .png and honours an explicit extension", () => {
+  const id = "capture-abc-def123";
+  assert.match(buildCaptureFileName("Save", id), /^step-save-[a-z0-9]+\.png$/);
+  assert.match(buildCaptureFileName("Save", id, "webp"), /^step-save-[a-z0-9]+\.webp$/);
+  assert.match(buildCaptureFileName("Save", id, "jpg"), /^step-save-[a-z0-9]+\.jpg$/);
+  // A leading dot in the extension is tolerated.
+  assert.match(buildCaptureFileName("Save", id, ".webp"), /^step-save-[a-z0-9]+\.webp$/);
+});
+
+// --- image format / downscale settings helpers -------------------------------
+
+test("formatToExtension maps formats to disk extensions", () => {
+  assert.equal(formatToExtension("png"), "png");
+  assert.equal(formatToExtension("webp"), "webp");
+  assert.equal(formatToExtension("jpeg"), "jpg");
+  assert.equal(formatToExtension("nonsense"), "png");
+});
+
+test("formatToMime maps formats to mime types", () => {
+  assert.equal(formatToMime("png"), "image/png");
+  assert.equal(formatToMime("webp"), "image/webp");
+  assert.equal(formatToMime("jpeg"), "image/jpeg");
+  assert.equal(formatToMime("nonsense"), "image/png");
+});
+
+test("isLossyFormat is true only for webp/jpeg", () => {
+  assert.equal(isLossyFormat("png"), false);
+  assert.equal(isLossyFormat("webp"), true);
+  assert.equal(isLossyFormat("jpeg"), true);
+});
+
+test("downscaleDimensions: no-op under cap, scales height proportionally over cap, 0 = no cap", () => {
+  // Under the cap -> unchanged, not flagged scaled.
+  assert.deepEqual(downscaleDimensions(800, 600, 1000), { width: 800, height: 600, scaled: false });
+  // Exactly at the cap -> unchanged.
+  assert.deepEqual(downscaleDimensions(1000, 750, 1000), { width: 1000, height: 750, scaled: false });
+  // Over the cap -> width clamped, height scaled proportionally.
+  assert.deepEqual(downscaleDimensions(2000, 1000, 1000), { width: 1000, height: 500, scaled: true });
+  // 0 means no cap.
+  assert.deepEqual(downscaleDimensions(2000, 1000, 0), { width: 2000, height: 1000, scaled: false });
+  // Height never rounds to zero.
+  assert.equal(downscaleDimensions(2000, 1, 10).height, 1);
 });
 
 test("buildCaptureMarkdown escapes brackets in alt text", () => {

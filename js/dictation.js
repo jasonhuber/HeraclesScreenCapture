@@ -1,6 +1,12 @@
 import { elements, state, lastNarrationSelection, setLastNarrationSelection } from "./state.js";
 import { refreshActionAvailability, renderPreview, saveSettings, setStatus } from "./ui.js";
 import { getActiveTab, validateActiveTab } from "./capture.js";
+import { getTranscriptionProvider } from "./settings.js";
+import {
+  isWhisperConfigured,
+  startWhisperRecording,
+  stopWhisperRecordingAndTranscribe
+} from "./transcription.js";
 
 const DICTATION_RESULT_MESSAGE_TYPE = "heracles-dictation-result";
 const DICTATION_ERROR_MESSAGE_TYPE = "heracles-dictation-error";
@@ -33,7 +39,8 @@ const dictationState = {
   pendingStartAfterPermission: false,
   lastStartAt: 0,
   rapidRestarts: 0,
-  interimText: ""
+  interimText: "",
+  transcribing: false
 };
 
 let dictateButton = null;
@@ -58,7 +65,18 @@ export function initDictation() {
 }
 
 export async function toggleDictation() {
+  // While a Whisper upload is in flight the button is disabled, but guard here
+  // too so a stray click can never double-fire the stop/transcribe path.
+  if (dictationState.transcribing) {
+    return;
+  }
+
   if (dictationState.active) {
+    if (dictationState.engine === "whisper") {
+      await stopWhisperDictation();
+      return;
+    }
+
     await stopDictation("Dictation stopped.");
     return;
   }
@@ -68,6 +86,13 @@ export async function toggleDictation() {
 
 export async function startRoutedDictation(sink) {
   dictationSink = typeof sink === "function" ? sink : null;
+
+  // Whisper is batch-only and gives no per-click interim, so auto-capture voice
+  // routing always uses the browser engine. Flag forces browser mode below.
+  if (getTranscriptionProvider() === "openai") {
+    setStatus("Voice routing uses the browser engine; Whisper applies to the Dictate button.");
+  }
+
   await startDictation();
 }
 
@@ -93,6 +118,21 @@ async function startDictation() {
     return;
   }
 
+  // Manual Dictate with the Whisper provider records audio for batch upload.
+  // Routed auto-capture voice (dictationSink set) always uses the browser
+  // engine instead, since Whisper has no per-click interim.
+  if (!dictationSink) {
+    if (isWhisperConfigured()) {
+      await startWhisperDictation();
+      return;
+    }
+
+    // Provider is Whisper but no key is set: fall back to the browser engine.
+    if (getTranscriptionProvider() === "openai") {
+      setStatus("Add an OpenAI API key in Settings to use Whisper; using the browser engine for now.");
+    }
+  }
+
   const stored = await chrome.storage.local.get({ [ENGINE_STORAGE_KEY]: "" });
   const preferredEngine = stored[ENGINE_STORAGE_KEY];
 
@@ -116,11 +156,87 @@ async function startDictation() {
   startPanelEngine();
 }
 
+async function startWhisperDictation() {
+  // Reuse the same one-time permission gate as the browser engine: if Chrome
+  // has not yet been asked for the mic, send the user through permission.html
+  // (which calls getUserMedia in a normal tab) and resume once granted.
+  const micState = await queryMicPermissionState();
+
+  if (micState === "prompt") {
+    requestMicPermission();
+    return;
+  }
+
+  if (micState === "denied") {
+    setStatus("Microphone access is blocked for the extension, so Whisper transcription cannot record.", "warn");
+    return;
+  }
+
+  try {
+    await startWhisperRecording();
+  } catch (error) {
+    setStatus(error.message || "Unable to start Whisper recording.", "warn");
+    return;
+  }
+
+  dictationState.engine = "whisper";
+  dictationState.active = true;
+  dictationState.stopRequested = false;
+  dictationState.hadResult = false;
+  dictationState.interimText = "";
+  dictationState.transcribing = false;
+
+  updateDictationUi();
+  setStatus("Recording for Whisper transcription. Click Stop Dictation when you are done.", "success");
+}
+
+async function stopWhisperDictation() {
+  if (dictationState.engine !== "whisper" || dictationState.transcribing) {
+    return;
+  }
+
+  // Keep "active" true through the request so the toggle reads as a stop, but
+  // mark transcribing so the button is disabled and a second click is a no-op.
+  dictationState.transcribing = true;
+  dictationState.interimText = "";
+  updateDictationUi();
+  setStatus("Transcribing with Whisper...");
+
+  let transcript = "";
+
+  try {
+    transcript = await stopWhisperRecordingAndTranscribe();
+  } catch (error) {
+    finishWhisperDictation();
+    setStatus(error.message || "Whisper transcription failed.", "warn");
+    return;
+  }
+
+  finishWhisperDictation();
+
+  if (transcript) {
+    insertDictatedText(transcript);
+    setStatus("Transcription inserted at your cursor.", "success");
+  } else {
+    setStatus("Whisper returned no speech, so nothing was inserted.", "warn");
+  }
+}
+
+function finishWhisperDictation() {
+  dictationState.active = false;
+  dictationState.transcribing = false;
+  dictationState.engine = "";
+  dictationState.interimText = "";
+  dictationState.stopRequested = true;
+  updateDictationUi();
+}
+
 export async function stopDictation(message, tone = "info") {
   dictationSink = null;
   dictationState.active = false;
   dictationState.stopRequested = true;
   dictationState.interimText = "";
+  dictationState.transcribing = false;
 
   if (dictationState.recognition) {
     const recognition = dictationState.recognition;
@@ -567,9 +683,22 @@ function updateDictationUi() {
   }
 
   if (dictationState.active) {
-    dictateButton.textContent = "Stop Dictation";
     dictateButton.classList.add("button-recording");
     interimElement.classList.remove("hidden");
+
+    if (dictationState.engine === "whisper") {
+      // Disable the toggle while the batch upload is in flight so a second
+      // click cannot double-fire the stop/transcribe path.
+      dictateButton.disabled = dictationState.transcribing;
+      dictateButton.textContent = dictationState.transcribing ? "Transcribing..." : "Stop Dictation";
+      interimElement.textContent = dictationState.transcribing
+        ? "Transcribing..."
+        : "Recording for transcription...";
+      return;
+    }
+
+    dictateButton.disabled = false;
+    dictateButton.textContent = "Stop Dictation";
 
     if (dictationState.interimText) {
       interimElement.textContent = dictationState.interimText;
@@ -581,6 +710,7 @@ function updateDictationUi() {
     return;
   }
 
+  dictateButton.disabled = false;
   dictateButton.textContent = "Dictate";
   dictateButton.classList.remove("button-recording");
   interimElement.textContent = "";

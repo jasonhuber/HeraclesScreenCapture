@@ -168,6 +168,64 @@
 
       <section class="card">
         <div class="section-heading">
+          <h2>Settings</h2>
+        </div>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Image Format</span>
+            <select id="imageFormatSelect" name="imageFormat">
+              <option value="png">PNG (sharpest, largest)</option>
+              <option value="webp">WebP (small, crisp)</option>
+              <option value="jpeg">JPEG (smallest, softer)</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Max Width</span>
+            <select id="maxWidthSelect" name="maxCaptureWidth">
+              <option value="0">No limit</option>
+              <option value="1280">1280 px</option>
+              <option value="1600">1600 px</option>
+              <option value="1920">1920 px</option>
+              <option value="2560">2560 px</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Image Quality <span id="imageQualityValue" class="small subtle"></span></span>
+          <input id="imageQualityRange" name="imageQuality" type="range" min="0.4" max="1" step="0.05">
+        </label>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Voice Transcription</span>
+            <select id="transcriptionProviderSelect" name="transcriptionProvider">
+              <option value="browser">Browser (free, on-device prompt)</option>
+              <option value="openai">OpenAI Whisper (API key)</option>
+            </select>
+          </label>
+
+          <label class="field hidden" id="openAiKeyField">
+            <span>OpenAI API Key</span>
+            <input id="openAiKeyInput" name="openAiApiKey" type="password" placeholder="sk-..." autocomplete="off">
+          </label>
+        </div>
+
+        <p class="small subtle">
+          Whisper sends recorded audio to OpenAI for transcription. The key is stored only in this browser. Keep
+          Browser mode for sensitive screens.
+        </p>
+
+        <div class="section-heading">
+          <span id="storageUsageText" class="small subtle">Storage usage not checked yet.</span>
+          <button id="refreshStorageButton" class="button button-ghost" type="button">Refresh</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
           <h2>Export</h2>
         </div>
 

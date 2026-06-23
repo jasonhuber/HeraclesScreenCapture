@@ -42,6 +42,7 @@ import {
   saveMarkdownDocument
 } from "./export.js";
 import { initExportFormats } from "./export-formats.js";
+import { initSettings } from "./settings.js";
 import {
   applySuggestedTitlesToAll,
   deleteCapture,
@@ -86,6 +87,7 @@ async function initialize() {
   cacheElements();
   bindEvents();
   initExportFormats();
+  await initSettings();
   renderShortcutHint();
 
   if (isFloatWindow()) {

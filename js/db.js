@@ -77,10 +77,28 @@ export async function deleteHandle() {
   });
 }
 
+function isQuotaError(error) {
+  return error && (error.name === "QuotaExceededError" || /quota/i.test(error.message || ""));
+}
+
+function rethrowStorageError(error) {
+  if (isQuotaError(error)) {
+    throw new Error(
+      "Out of local storage for screenshots. Export and start a new run, delete some steps, or lower the image quality/size in Settings."
+    );
+  }
+
+  throw error;
+}
+
 export async function storeCaptureAsset(captureId, blob) {
-  await withStore(ASSET_STORE, "readwrite", (store) => {
-    store.put(blob, captureId);
-  });
+  try {
+    await withStore(ASSET_STORE, "readwrite", (store) => {
+      store.put(blob, captureId);
+    });
+  } catch (error) {
+    rethrowStorageError(error);
+  }
 }
 
 export async function getCaptureAsset(captureId) {
@@ -98,9 +116,13 @@ export async function deleteCaptureAsset(captureId) {
 }
 
 export async function storeCaptureOriginal(captureId, blob) {
-  await withStore(ORIGINAL_STORE, "readwrite", (store) => {
-    store.put(blob, captureId);
-  });
+  try {
+    await withStore(ORIGINAL_STORE, "readwrite", (store) => {
+      store.put(blob, captureId);
+    });
+  } catch (error) {
+    rethrowStorageError(error);
+  }
 }
 
 export async function getCaptureOriginal(captureId) {
